@@ -8,7 +8,7 @@ pub struct Parameters {
     pub traceback: bool,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Results {
     pub params: Parameters,
     pub runtime_secs: Option<f64>,
