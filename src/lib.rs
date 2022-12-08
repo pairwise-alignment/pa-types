@@ -8,11 +8,16 @@ pub type Cost = i32;
 /// A size, in bytes.
 pub type Bytes = u64;
 
+/// A single base
+// NOTE: This is also part of rust-bio-types.
+pub type Base = u8;
+
 /// A sequence
-pub type Sequence = Vec<u8>;
+// NOTE: This is also part of rust-bio-types.
+pub type Sequence = Vec<Base>;
 
 /// A non-owning sequence
-pub type Seq<'a> = &'a [u8];
+pub type Seq<'a> = &'a [Base];
 
 /// Takes an input string and returns the corresponding number of bytes. See the
 /// documentation of the parse-size crates for details.
