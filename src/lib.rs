@@ -8,12 +8,17 @@ pub struct Parameters {
     traceback: bool,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ParametersList {
+    list: Vec<Parameters>,
+}
+
 #[derive(Serialize, Debug)]
 pub struct Results {
     params: Parameters,
-    runtime_secs: f64,
-    memory_bytes: usize,
-    scores: Vec<i32>,
+    runtime_secs: Option<f64>,
+    memory_bytes: Option<usize>,
+    scores: Option<Vec<i32>>,
     cigar: Option<Vec<String>>,
 }
 
