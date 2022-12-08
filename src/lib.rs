@@ -22,6 +22,11 @@ pub struct Results {
     cigar: Option<Vec<String>>,
 }
 
+#[derive(Serialize, Debug)]
+pub struct ResultsList {
+    list: Vec<Results>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Costs {
     /// Match cost >= 0.
