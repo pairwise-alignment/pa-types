@@ -2,41 +2,31 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Parameters {
-    algo: Algorithm,
+    pub algo: Algorithm,
     /// Path to a `.seq` file.
-    dataset: String,
-    traceback: bool,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ParametersList {
-    list: Vec<Parameters>,
+    pub dataset: String,
+    pub traceback: bool,
 }
 
 #[derive(Serialize, Debug)]
 pub struct Results {
-    params: Parameters,
-    runtime_secs: Option<f64>,
-    memory_bytes: Option<usize>,
-    scores: Option<Vec<i32>>,
-    cigar: Option<Vec<String>>,
-}
-
-#[derive(Serialize, Debug)]
-pub struct ResultsList {
-    list: Vec<Results>,
+    pub params: Parameters,
+    pub runtime_secs: Option<f64>,
+    pub memory_bytes: Option<usize>,
+    pub scores: Option<Vec<i32>>,
+    pub cigars: Option<Vec<String>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Costs {
     /// Match cost >= 0.
-    match_cost: i32,
+    pub match_cost: i32,
     /// Mismatch cost < 0.
-    mismatch_cost: i32,
+    pub mismatch_cost: i32,
     /// Gap open cost <= 0.
-    gap_open: i32,
+    pub gap_open: i32,
     /// Gap extend cost <= 0.
-    gap_extend: i32,
+    pub gap_extend: i32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
