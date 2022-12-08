@@ -8,14 +8,35 @@ pub type Cost = i32;
 /// A size, in bytes.
 pub type Bytes = u64;
 
+/// A sequence
+pub type Sequence = Vec<u8>;
+
+/// A non-owning sequence
+pub type Seq<'a> = &'a [u8];
+
+/// Takes an input string and returns the corresponding number of bytes. See the
+/// documentation of the parse-size crates for details.
+///
+/// Use `K/M/G` for base `1000`, and `Ki/Mi/Gi` for base `2^10`. Case is
+/// ignored. The trailing `B` is optional.
+///
+/// "1234"  => Bytes(1234)
+/// "1 KB"  => Bytes(1000)
+/// "1 kb"  => Bytes(1000)
+/// "1 k"   => Bytes(1000)
+/// "1 KiB" => Bytes(1024)
+/// "1 kib" => Bytes(1024)
+/// "1 ki"  => Bytes(1024)
+/// ...
 pub fn parse_bytes(input: &str) -> Result<Bytes, parse_size::Error> {
     parse_size::parse_size(input)
 }
 
-// TODO: Define which is insertion and which is deletion.
+// TODO(ragnar): Define which direction is insertion and which is deletion.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum CigarOp {
     Match,
+    // TODO(ragnar): Choose between substitution and mismatch and use consistently.
     Sub,
     Del,
     Ins,
@@ -30,6 +51,7 @@ pub struct Cigar {
 
 /// Different cost models.
 /// All values must be non-negative.
+// TODO(ragnar): Find a suitable name.
 // TODO(ragnar): I am not sure of the best representation. This enum is
 // conceptually nice, but possibly annoying in practice. Another option is to
 // always have an in-memory representation in the most general way, and make
@@ -88,6 +110,7 @@ pub struct JobResult {
     pub output: Option<JobOutput>,
 }
 
+// TODO(ragnar): Delete this in favour of CostModel further up.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Costs {
     /// Match cost >= 0.
