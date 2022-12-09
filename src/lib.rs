@@ -45,11 +45,63 @@ pub enum CigarOp {
     Ins,
 }
 
+/// Types representation of a Cigar string.
 // This is similar to https://docs.rs/bio/1.0.0/bio/alignment/struct.Alignment.html,
 // but more specific for our use case.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cigar {
     pub operations: Vec<(CigarOp, u32)>,
+}
+
+/// Configuration for an aligner.
+/// The cost model is specified here.
+pub trait AlignerConfig: Clone {
+    type Instance: AlignerInstance;
+
+    /// Create the aligner with default parameters for the given cost model.
+    /// This may panic if the cost model is not supported by the aligner.
+    fn new(cm: CostModel) -> Self;
+
+    /// Build the instance.
+    /// This may panic if the cost model is not supported by the aligner.
+    fn build(&self) -> Self::Instance;
+}
+
+/// A reusable instance of an aligner. This is created from an AlignerConfig and
+/// can be used for multiple alignments, so that e.g. allocated memory can be reused.
+pub trait AlignerInstance {
+    type Config: AlignerConfig;
+
+    /// Return the config.
+    fn config(&self) -> &Self::Config;
+
+    // TODO(ragnar): Figure out whether to keep cost+align, align_trace, or both.
+
+    /// The cost of aligning sequences `a` and `b`.
+    fn cost(&self, a: Seq, b: Seq) -> Cost {
+        self.align_trace(a, b, false).0
+    }
+
+    /// An alignment (trace) of sequences `a` and `b`.
+    fn align(&self, a: Seq, b: Seq) -> (Cost, Cigar) {
+        let (cost, cigar) = self.align_trace(a, b, false);
+        (
+            cost,
+            cigar.expect("Aligning with trace did not return cigar!"),
+        )
+    }
+
+    /// An alignment of sequences `a` and `b` with or without trace.
+    ///
+    /// Either this or both cost() and align() must be implemented.
+    fn align_trace(&self, a: Seq, b: Seq, trace: bool) -> (Cost, Option<Cigar>) {
+        if trace {
+            let (cost, cigar) = self.align(a, b);
+            (cost, Some(cigar))
+        } else {
+            (self.cost(a, b), None)
+        }
+    }
 }
 
 /// Different cost models.
