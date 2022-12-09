@@ -1,7 +1,14 @@
 [package]
-name = "core-lib"
+name = "pa-types"
+authors = ["Ragnar Groot Koerkamp", "Daniel Liu"]
+description = "Core library types for global pairwise alignment"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/pairwise-alignment/pa-types"
+license = "MIT"
+keywords = ["pairwise-alignment", "bioinformatics", "library"]
+readme = "README.md"
+categories = ["science"]
 
 [dependencies]
 serde = { version = "^1.0", features = ["derive"] }
