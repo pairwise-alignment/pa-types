@@ -115,26 +115,9 @@ pub struct JobResult {
     pub output: Option<JobOutput>,
 }
 
-// TODO(ragnar): Delete this in favour of CostModel further up.
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Costs {
-    /// Match cost >= 0.
-    pub match_cost: i32,
-    /// Mismatch cost < 0.
-    pub mismatch_cost: i32,
-    /// Gap open cost <= 0.
-    pub gap_open: i32,
-    /// Gap extend cost <= 0.
-    pub gap_extend: i32,
-}
-
+/// Which algorithm to run and benchmark, along with algorithm-specific parameters.
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Algorithm {
-    BlockAligner {
-        // TODO(ragnar): I think the costs are part of the input rather than the algorithm parameters.
-        costs: Costs,
-        min_size: usize,
-        max_size: usize,
-    },
+    BlockAligner { min_size: usize, max_size: usize },
     // Add more algorithms here!
 }
