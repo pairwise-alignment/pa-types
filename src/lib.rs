@@ -67,12 +67,16 @@ pub enum CostModel {
     Unit,
     /// Different cost for substitutions and indels.
     Linear {
+        /// >= 0
+        r#match: Cost,
         /// > 0
         sub: Cost,
         /// > 0
         indel: Cost,
     },
     Affine {
+        /// >= 0
+        r#match: Cost,
         /// > 0
         sub: Cost,
         /// >= 0
