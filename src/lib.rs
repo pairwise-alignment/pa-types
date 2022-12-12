@@ -55,7 +55,7 @@ pub struct Cigar {
 
 /// Different cost models.
 /// All values must be non-negative.
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct CostModel {
     /// >= 0
     pub r#match: Cost,
