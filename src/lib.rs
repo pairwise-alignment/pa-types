@@ -55,35 +55,51 @@ pub struct Cigar {
 
 /// Different cost models.
 /// All values must be non-negative.
-// TODO(ragnar): Find a suitable name.
-// TODO(ragnar): I am not sure of the best representation. This enum is
-// conceptually nice, but possibly annoying in practice. Another option is to
-// always have an in-memory representation in the most general way, and make
-// additional constructors that fill fields for simpler variants. In this case
-// we also need a way to go back from the general case to more specific cases
-// via e.g. `is_unit()` and `is_linear()`.
-#[derive(Serialize, Deserialize, Debug)]
-pub enum CostModel {
-    /// Levenshtein distance / Edit distance
-    Unit,
-    /// Different cost for substitutions and indels.
-    Linear {
-        /// >= 0
-        r#match: Cost,
-        /// > 0
-        sub: Cost,
-        /// > 0
-        indel: Cost,
-    },
-    Affine {
-        /// >= 0
-        r#match: Cost,
-        /// > 0
-        sub: Cost,
-        /// >= 0
-        /// When 0, equivalent to Linear.
-        open: Cost,
-        /// > 0
-        extend: Cost,
-    },
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
+pub struct CostModel {
+    /// >= 0
+    pub r#match: Cost,
+    /// > 0
+    pub sub: Cost,
+    /// >= 0
+    /// When 0, equivalent to Linear.
+    pub open: Cost,
+    /// > 0
+    pub extend: Cost,
+}
+
+impl CostModel {
+    pub fn unit() -> Self {
+        Self {
+            r#match: 0,
+            sub: 1,
+            open: 0,
+            extend: 1,
+        }
+    }
+    pub fn is_unit(&self) -> bool {
+        self == &Self::unit()
+    }
+    pub fn linear(sub: Cost, indel: Cost) -> Self {
+        Self {
+            r#match: 0,
+            sub,
+            open: 0,
+            extend: indel,
+        }
+    }
+    pub fn is_linear(&self) -> bool {
+        self.r#match == 0 && self.open == 0
+    }
+    pub fn affine(sub: Cost, open: Cost, extend: Cost) -> Self {
+        Self {
+            r#match: 0,
+            sub,
+            open,
+            extend,
+        }
+    }
+    pub fn is_affine(&self) -> bool {
+        self.r#match == 0
+    }
 }
