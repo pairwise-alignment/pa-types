@@ -36,10 +36,9 @@ pub fn parse_bytes(input: &str) -> Result<Bytes, parse_size::Error> {
 }
 
 // TODO(ragnar): Define which direction is insertion and which is deletion.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum CigarOp {
     Match,
-    // TODO(ragnar): Choose between substitution and mismatch and use consistently.
     Sub,
     Del,
     Ins,
