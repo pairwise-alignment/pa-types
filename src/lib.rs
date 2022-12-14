@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 /// The non-negative cost of an alignment.
@@ -50,6 +51,18 @@ pub enum CigarOp {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cigar {
     pub operations: Vec<(CigarOp, u32)>,
+}
+
+impl Cigar {
+    pub fn from_ops(ops: impl Iterator<Item = CigarOp>) -> Self {
+        Cigar {
+            operations: ops
+                .group_by(|&op| op)
+                .into_iter()
+                .map(|(op, group)| (op, group.count() as _))
+                .collect(),
+        }
+    }
 }
 
 /// Different cost models.
