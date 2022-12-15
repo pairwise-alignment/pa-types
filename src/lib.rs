@@ -49,7 +49,7 @@ pub enum CigarOp {
 impl CigarOp {
     pub fn to_char(&self) -> char {
         match self {
-            CigarOp::Match => 'M',
+            CigarOp::Match => '=',
             CigarOp::Sub => 'X',
             CigarOp::Ins => 'I',
             CigarOp::Del => 'D',
@@ -140,6 +140,60 @@ impl Cigar {
         assert!(pos == (a.len(), b.len()));
 
         cost
+    }
+
+    pub fn parse(s: &str, a: Seq, b: Seq) -> Self {
+        let (mut i, mut j) = (0, 0);
+        let mut operations = vec![];
+        for slice in s.as_bytes().split_inclusive(|b| b.is_ascii_alphabetic()) {
+            let (op, cnt) = slice.split_last().unwrap();
+            let cnt = if cnt.is_empty() {
+                1
+            } else {
+                unsafe { std::str::from_utf8_unchecked(cnt) }
+                    .parse()
+                    .unwrap()
+            };
+            let op = match *op {
+                b'M' => {
+                    std::iter::zip(i..i + cnt, j..j + cnt)
+                        .map(|(i, j)| a[i] == b[j])
+                        .group_by(|&eq| eq)
+                        .into_iter()
+                        .for_each(|(eq, group)| {
+                            operations.push((
+                                if eq { CigarOp::Match } else { CigarOp::Sub },
+                                group.count() as _,
+                            ));
+                        });
+
+                    i += cnt;
+                    j += cnt;
+                    continue;
+                }
+                b'=' => {
+                    i += cnt;
+                    j += cnt;
+                    CigarOp::Match
+                }
+                b'X' => {
+                    i += cnt;
+                    j += cnt;
+                    CigarOp::Sub
+                }
+                b'I' => {
+                    j += cnt;
+                    CigarOp::Ins
+                }
+                b'D' => {
+                    i += cnt;
+                    CigarOp::Del
+                }
+                _ => todo!(),
+            };
+            operations.push((op, cnt as _));
+        }
+        Cigar { operations }
     }
 }
 
