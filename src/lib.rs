@@ -1,5 +1,6 @@
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::fmt::Write;
 
 /// The non-negative cost of an alignment.
 pub type Cost = i32;
@@ -45,12 +46,33 @@ pub enum CigarOp {
     Ins,
 }
 
+impl CigarOp {
+    pub fn to_char(&self) -> char {
+        match self {
+            CigarOp::Match => 'M',
+            CigarOp::Sub => 'X',
+            CigarOp::Ins => 'I',
+            CigarOp::Del => 'D',
+        }
+    }
+}
+
 /// Types representation of a Cigar string.
 // This is similar to https://docs.rs/bio/1.0.0/bio/alignment/struct.Alignment.html,
 // but more specific for our use case.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cigar {
     pub operations: Vec<(CigarOp, u32)>,
+}
+
+impl ToString for Cigar {
+    fn to_string(&self) -> String {
+        let mut s = String::new();
+        for (op, cnt) in &self.operations {
+            write!(&mut s, "{}{}", cnt, op.to_char()).unwrap();
+        }
+        s
+    }
 }
 
 impl Cigar {
@@ -62,6 +84,62 @@ impl Cigar {
                 .map(|(op, group)| (op, group.count() as _))
                 .collect(),
         }
+    }
+
+    pub fn push(&mut self, op: CigarOp) {
+        if let Some(s) = self.operations.last_mut() {
+            if s.0 == op {
+                s.1 += 1;
+                return;
+            }
+        }
+        self.operations.push((op, 1));
+    }
+
+    pub fn push_matches(&mut self, cnt: usize) {
+        if let Some(s) = self.operations.last_mut() {
+            if s.0 == CigarOp::Match {
+                s.1 += cnt as u32;
+                return;
+            }
+        }
+        self.operations.push((CigarOp::Match, cnt as _));
+    }
+
+    pub fn verify(&self, cm: &CostModel, a: Seq, b: Seq) -> Cost {
+        let mut pos: (usize, usize) = (0, 0);
+        let mut cost: Cost = 0;
+
+        for &(op, cnt) in &self.operations {
+            match op {
+                CigarOp::Match => {
+                    for _ in 0..cnt {
+                        assert_eq!(a.get(pos.0), b.get(pos.1));
+                        pos.0 += 1;
+                        pos.1 += 1;
+                    }
+                }
+                CigarOp::Sub => {
+                    for _ in 0..cnt {
+                        assert_ne!(a.get(pos.0), b.get(pos.1));
+                        pos.0 += 1;
+                        pos.1 += 1;
+                        cost += cm.sub;
+                    }
+                }
+                CigarOp::Ins => {
+                    pos.1 += cnt as usize;
+                    cost += cm.open + cnt as Cost * cm.extend;
+                }
+                CigarOp::Del => {
+                    pos.0 += cnt as usize;
+                    cost += cm.open + cnt as Cost * cm.extend;
+                }
+            }
+        }
+        assert!(pos == (a.len(), b.len()));
+
+        cost
     }
 }
 
