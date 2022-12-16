@@ -280,6 +280,6 @@ impl ScoreModel {
 
     pub fn global_cost(&self, score: i32, a_len: usize, b_len: usize) -> Cost {
         let path_len = (a_len + b_len) as i32;
-        (score - path_len * Self::OFFSET) / self.factor
+        (-score + path_len * Self::OFFSET) / self.factor
     }
 }
