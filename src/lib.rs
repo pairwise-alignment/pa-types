@@ -201,8 +201,6 @@ impl Cigar {
 /// All values must be non-negative.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub struct CostModel {
-    /// >= 0
-    pub r#match: Cost,
     /// > 0
     pub sub: Cost,
     /// >= 0
@@ -215,7 +213,6 @@ pub struct CostModel {
 impl CostModel {
     pub fn unit() -> Self {
         Self {
-            r#match: 0,
             sub: 1,
             open: 0,
             extend: 1,
@@ -226,24 +223,63 @@ impl CostModel {
     }
     pub fn linear(sub: Cost, indel: Cost) -> Self {
         Self {
-            r#match: 0,
             sub,
             open: 0,
             extend: indel,
         }
     }
     pub fn is_linear(&self) -> bool {
-        self.r#match == 0 && self.open == 0
+        self.open == 0
     }
     pub fn affine(sub: Cost, open: Cost, extend: Cost) -> Self {
-        Self {
-            r#match: 0,
-            sub,
-            open,
-            extend,
-        }
+        Self { sub, open, extend }
     }
     pub fn is_affine(&self) -> bool {
-        self.r#match == 0
+        self.open > 0
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+pub struct ScoreModel {
+    /// > 0
+    pub r#match: Cost,
+    /// < 0
+    pub sub: Cost,
+    /// <= 0
+    pub open: Cost,
+    /// < 0
+    pub extend: Cost,
+
+    pub factor: i32,
+}
+
+impl ScoreModel {
+    const OFFSET: i32 = 1;
+
+    pub fn from_costs(cm: CostModel) -> Self {
+        let factor;
+        if cm.sub > 2 && cm.extend > 1 {
+            factor = 1;
+        } else if cm.sub == 1 {
+            factor = 3;
+        } else {
+            factor = 2;
+        }
+
+        Self {
+            r#match: Self::OFFSET * 2,
+            // < 0
+            sub: -cm.sub * factor + Self::OFFSET * 2,
+            // <= 0
+            open: -cm.open * factor,
+            // < 0
+            extend: -cm.extend * factor + Self::OFFSET,
+            factor,
+        }
+    }
+
+    pub fn global_cost(&self, score: i32, a_len: usize, b_len: usize) -> Cost {
+        let path_len = (a_len + b_len) as i32;
+        (score - path_len * Self::OFFSET) / self.factor
     }
 }
