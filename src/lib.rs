@@ -142,20 +142,14 @@ impl Cigar {
         cost
     }
 
-    pub fn parse(s: &str, a: Seq, b: Seq) -> Self {
+    /// Splits all 'M'/Matches into matches and substitutions.
+    pub fn resolve_matches(ops: impl Iterator<Item = (CigarOp, u32)>, a: Seq, b: Seq) -> Self {
         let (mut i, mut j) = (0, 0);
         let mut operations = vec![];
-        for slice in s.as_bytes().split_inclusive(|b| b.is_ascii_alphabetic()) {
-            let (op, cnt) = slice.split_last().unwrap();
-            let cnt = if cnt.is_empty() {
-                1
-            } else {
-                unsafe { std::str::from_utf8_unchecked(cnt) }
-                    .parse()
-                    .unwrap()
-            };
-            let op = match *op {
-                b'M' => {
+        for (op, cnt) in ops {
+            let cnt = cnt as usize;
+            match op {
+                CigarOp::Match => {
                     std::iter::zip(i..i + cnt, j..j + cnt)
                         .map(|(i, j)| a[i] == b[j])
                         .group_by(|&eq| eq)
@@ -171,29 +165,47 @@ impl Cigar {
                     j += cnt;
                     continue;
                 }
-                b'=' => {
+                CigarOp::Sub => {
                     i += cnt;
                     j += cnt;
-                    CigarOp::Match
                 }
-                b'X' => {
-                    i += cnt;
+                CigarOp::Ins => {
                     j += cnt;
-                    CigarOp::Sub
                 }
-                b'I' => {
-                    j += cnt;
-                    CigarOp::Ins
-                }
-                b'D' => {
+                CigarOp::Del => {
                     i += cnt;
-                    CigarOp::Del
                 }
-                _ => todo!(),
             };
             operations.push((op, cnt as _));
         }
         Cigar { operations }
+    }
+
+    pub fn parse(s: &str, a: Seq, b: Seq) -> Self {
+        Self::resolve_matches(
+            s.as_bytes()
+                .split_inclusive(|b| b.is_ascii_alphabetic())
+                .map(|slice| {
+                    let (op, cnt) = slice.split_last().unwrap();
+                    let cnt = if cnt.is_empty() {
+                        1
+                    } else {
+                        unsafe { std::str::from_utf8_unchecked(cnt) }
+                            .parse()
+                            .unwrap()
+                    };
+                    let op = match *op {
+                        b'M' | b'=' => CigarOp::Match,
+                        b'X' => CigarOp::Sub,
+                        b'I' => CigarOp::Ins,
+                        b'D' => CigarOp::Del,
+                        _ => panic!(),
+                    };
+                    (op, cnt as _)
+                }),
+            a,
+            b,
+        )
     }
 }
 
