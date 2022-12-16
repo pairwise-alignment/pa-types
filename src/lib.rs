@@ -5,6 +5,9 @@ use std::fmt::Write;
 /// The non-negative cost of an alignment.
 pub type Cost = i32;
 
+/// The score of an alignment. Can be positive or negative.
+pub type Score = i32;
+
 /// A size, in bytes.
 pub type Bytes = u64;
 
@@ -254,13 +257,13 @@ impl CostModel {
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub struct ScoreModel {
     /// > 0
-    pub r#match: Cost,
+    pub r#match: Score,
     /// < 0
-    pub sub: Cost,
+    pub sub: Score,
     /// <= 0
-    pub open: Cost,
+    pub open: Score,
     /// < 0
-    pub extend: Cost,
+    pub extend: Score,
 
     pub factor: i32,
 }
@@ -290,8 +293,10 @@ impl ScoreModel {
         }
     }
 
-    pub fn global_cost(&self, score: i32, a_len: usize, b_len: usize) -> Cost {
+    pub fn global_cost(&self, score: Score, a_len: usize, b_len: usize) -> Cost {
         let path_len = (a_len + b_len) as i32;
-        (-score + path_len * Self::OFFSET) / self.factor
+        let s = -score + path_len * Self::OFFSET;
+        assert!(s % self.factor == 0);
+        s / self.factor
     }
 }
