@@ -38,6 +38,12 @@ pub type I = i32;
 )]
 pub struct Pos(pub I, pub I);
 
+impl std::fmt::Display for Pos {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <Self as std::fmt::Debug>::fmt(self, f)
+    }
+}
+
 /// Partial ordering by
 /// (a,b) <= (c,d) when a<=c and b<=d.
 /// (a,b) < (c,d) when a<=c and b<=d and a<c or b<d.
