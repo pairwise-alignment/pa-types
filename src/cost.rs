@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::I;
+
 /// The non-negative cost of an alignment.
 pub type Cost = i32;
 

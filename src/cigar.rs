@@ -20,7 +20,7 @@ pub struct CigarElem {
 }
 
 impl CigarElem {
-    pub fn new(op: CigarOp, cnt: u32) -> Self {
+    pub fn new(op: CigarOp, cnt: I) -> Self {
         Self { op, cnt }
     }
 }
@@ -82,17 +82,17 @@ impl Cigar {
     }
 
     pub fn to_path(&self) -> Path {
-        let mut position = Pos(0, 0);
-        let mut path = vec![position];
+        let mut pos = Pos(0, 0);
+        let mut path = vec![pos];
         for el in &self.ops {
             for _ in 0..el.cnt {
-                position += match el.op {
+                pos += match el.op {
                     CigarOp::Match => Pos(1, 1),
                     CigarOp::Sub => Pos(1, 1),
                     CigarOp::Del => Pos(1, 0),
                     CigarOp::Ins => Pos(0, 1),
                 };
-                path.push(position);
+                path.push(pos);
             }
         }
         path
@@ -141,29 +141,32 @@ impl Cigar {
 
     pub fn push(&mut self, op: CigarOp) {
         if let Some(s) = self.ops.last_mut() {
-            if s.0 == op {
-                s.1 += 1;
+            if s.op == op {
+                s.cnt += 1;
                 return;
             }
         }
-        self.ops.push((op, 1));
+        self.ops.push(CigarElem { op, cnt: 1 });
     }
 
-    pub fn push_matches(&mut self, cnt: usize) {
+    pub fn push_matches(&mut self, cnt: I) {
         if let Some(s) = self.ops.last_mut() {
-            if s.0 == CigarOp::Match {
-                s.1 += cnt as u32;
+            if s.op == CigarOp::Match {
+                s.cnt += cnt;
                 return;
             }
         }
-        self.ops.push((CigarOp::Match, cnt as _));
+        self.ops.push(CigarElem {
+            op: CigarOp::Match,
+            cnt: cnt as _,
+        });
     }
 
     pub fn verify(&self, cm: &CostModel, a: Seq, b: Seq) -> Cost {
         let mut pos: (usize, usize) = (0, 0);
         let mut cost: Cost = 0;
 
-        for &(op, cnt) in &self.ops {
+        for &CigarElem { op, cnt } in &self.ops {
             match op {
                 CigarOp::Match => {
                     for _ in 0..cnt {
@@ -196,22 +199,21 @@ impl Cigar {
     }
 
     /// Splits all 'M'/Matches into matches and substitutions.
-    pub fn resolve_matches(ops: impl Iterator<Item = (CigarOp, u32)>, a: Seq, b: Seq) -> Self {
-        let (mut i, mut j) = (0, 0);
+    pub fn resolve_matches(ops: impl Iterator<Item = (CigarOp, I)>, a: Seq, b: Seq) -> Self {
+        let Pos(mut i, mut j) = Pos(0, 0);
         let mut operations = vec![];
         for (op, cnt) in ops {
-            let cnt = cnt as usize;
             match op {
                 CigarOp::Match => {
                     std::iter::zip(i..i + cnt, j..j + cnt)
-                        .map(|(i, j)| a[i] == b[j])
+                        .map(|(i, j)| a[i as usize] == b[j as usize])
                         .group_by(|&eq| eq)
                         .into_iter()
                         .for_each(|(eq, group)| {
-                            operations.push((
-                                if eq { CigarOp::Match } else { CigarOp::Sub },
-                                group.count() as _,
-                            ));
+                            operations.push(CigarElem {
+                                op: if eq { CigarOp::Match } else { CigarOp::Sub },
+                                cnt: group.count() as _,
+                            });
                         });
 
                     i += cnt;
@@ -229,7 +231,7 @@ impl Cigar {
                     i += cnt;
                 }
             };
-            operations.push((op, cnt as _));
+            operations.push(CigarElem { op, cnt });
         }
         Cigar { ops: operations }
     }
