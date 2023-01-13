@@ -71,9 +71,18 @@ impl Cigar {
         }
         Self::resolve_matches(
             path.iter().tuple_windows().map(|(&a, &b)| match b - a {
-                Pos(0, 1) => (CigarOp::Ins, 1),
-                Pos(1, 0) => (CigarOp::Del, 1),
-                Pos(1, 1) => (CigarOp::Match, 1),
+                Pos(0, 1) => CigarElem {
+                    op: CigarOp::Ins,
+                    cnt: 1,
+                },
+                Pos(1, 0) => CigarElem {
+                    op: CigarOp::Del,
+                    cnt: 1,
+                },
+                Pos(1, 1) => CigarElem {
+                    op: CigarOp::Match,
+                    cnt: 1,
+                },
                 _ => panic!("Path elements are not consecutive."),
             }),
             a,
@@ -199,10 +208,10 @@ impl Cigar {
     }
 
     /// Splits all 'M'/Matches into matches and substitutions.
-    pub fn resolve_matches(ops: impl Iterator<Item = (CigarOp, I)>, a: Seq, b: Seq) -> Self {
+    pub fn resolve_matches(ops: impl Iterator<Item = CigarElem>, a: Seq, b: Seq) -> Self {
         let Pos(mut i, mut j) = Pos(0, 0);
         let mut operations = vec![];
-        for (op, cnt) in ops {
+        for CigarElem { op, cnt } in ops {
             match op {
                 CigarOp::Match => {
                     std::iter::zip(i..i + cnt, j..j + cnt)
@@ -257,7 +266,7 @@ impl Cigar {
                             b'D' => CigarOp::Del,
                             _ => panic!(),
                         };
-                        (op, cnt as _)
+                        CigarElem { op, cnt }
                     }),
                 a,
                 b,
@@ -276,7 +285,10 @@ impl Cigar {
                             b'D' => CigarOp::Del,
                             _ => panic!(),
                         };
-                        (op, group.count() as _)
+                        CigarElem {
+                            op,
+                            cnt: group.count() as _,
+                        }
                     }),
                 a,
                 b,
