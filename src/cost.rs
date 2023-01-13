@@ -52,15 +52,19 @@ impl CostModel {
     }
 
     /// The cost of a substitution.
-    pub fn sub_cost(&self) -> Cost {
+    pub fn sub(&self) -> Cost {
         self.sub
     }
+    /// The cost of a substitution, or None if not allowed.
+    pub fn maybe_sub(&self) -> Option<Cost> {
+        Some(self.sub)
+    }
     /// The cost of an insertion of given length.
-    pub fn ins_cost(&self, len: I) -> Cost {
+    pub fn ins(&self, len: I) -> Cost {
         self.open + len * self.extend
     }
     /// The cost of a deletion of given length.
-    pub fn del_cost(&self, len: I) -> Cost {
+    pub fn del(&self, len: I) -> Cost {
         self.open + len * self.extend
     }
 }

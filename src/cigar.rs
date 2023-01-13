@@ -132,14 +132,14 @@ impl Cigar {
                 CigarOp::Ins => {
                     for _ in 0..(el.cnt as Cost) {
                         pos.1 += 1;
-                        cost += cm.ins_cost(el.cnt);
+                        cost += cm.ins(el.cnt);
                         path.push((pos, cost));
                     }
                 }
                 CigarOp::Del => {
                     for _ in 0..(el.cnt as Cost) {
                         pos.0 += 1;
-                        cost += cm.del_cost(el.cnt);
+                        cost += cm.del(el.cnt);
                         path.push((pos, cost));
                     }
                 }
