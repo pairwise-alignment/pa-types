@@ -1,6 +1,8 @@
 pub mod cigar;
 pub mod cost;
 
+use std::cmp::Ordering;
+
 pub use cigar::*;
 pub use cost::*;
 
@@ -35,6 +37,32 @@ pub type I = i32;
     derive_more::SubAssign,
 )]
 pub struct Pos(pub I, pub I);
+
+/// Partial ordering by
+/// (a,b) <= (c,d) when a<=c and b<=d.
+/// (a,b) < (c,d) when a<=c and b<=d and a<c or b<d.
+impl PartialOrd for Pos {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let a = self.0.cmp(&other.0);
+        let b = self.1.cmp(&other.1);
+        if a == b {
+            return Some(a);
+        }
+        if a == Ordering::Equal {
+            return Some(b);
+        }
+        if b == Ordering::Equal {
+            return Some(a);
+        }
+        None
+    }
+
+    #[inline]
+    fn le(&self, other: &Self) -> bool {
+        self.0 <= other.0 && self.1 <= other.1
+    }
+}
 
 /// The path corresponding to an alignment of two sequences.
 pub type Path = Vec<Pos>;
