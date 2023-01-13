@@ -237,29 +237,50 @@ impl Cigar {
     }
 
     pub fn parse(s: &str, a: Seq, b: Seq) -> Self {
-        Self::resolve_matches(
-            s.as_bytes()
-                .split_inclusive(|b| b.is_ascii_alphabetic())
-                .map(|slice| {
-                    let (op, cnt) = slice.split_last().unwrap();
-                    let cnt = if cnt.is_empty() {
-                        1
-                    } else {
-                        unsafe { std::str::from_utf8_unchecked(cnt) }
-                            .parse()
-                            .unwrap()
-                    };
-                    let op = match *op {
-                        b'M' | b'=' => CigarOp::Match,
-                        b'X' => CigarOp::Sub,
-                        b'I' => CigarOp::Ins,
-                        b'D' => CigarOp::Del,
-                        _ => panic!(),
-                    };
-                    (op, cnt as _)
-                }),
-            a,
-            b,
-        )
+        if s.as_bytes().iter().any(|&b| b.is_ascii_digit()) {
+            Self::resolve_matches(
+                s.as_bytes()
+                    .split_inclusive(|b| b.is_ascii_alphabetic())
+                    .map(|slice| {
+                        let (op, cnt) = slice.split_last().unwrap();
+                        let cnt = if cnt.is_empty() {
+                            1
+                        } else {
+                            unsafe { std::str::from_utf8_unchecked(cnt) }
+                                .parse()
+                                .unwrap()
+                        };
+                        let op = match *op {
+                            b'M' | b'=' => CigarOp::Match,
+                            b'X' => CigarOp::Sub,
+                            b'I' => CigarOp::Ins,
+                            b'D' => CigarOp::Del,
+                            _ => panic!(),
+                        };
+                        (op, cnt as _)
+                    }),
+                a,
+                b,
+            )
+        } else {
+            Self::resolve_matches(
+                s.as_bytes()
+                    .iter()
+                    .group_by(|&b| b)
+                    .into_iter()
+                    .map(|(b, group)| {
+                        let op = match b {
+                            b'M' | b'=' => CigarOp::Match,
+                            b'X' => CigarOp::Sub,
+                            b'I' => CigarOp::Ins,
+                            b'D' => CigarOp::Del,
+                            _ => panic!(),
+                        };
+                        (op, group.count() as _)
+                    }),
+                a,
+                b,
+            )
+        }
     }
 }
