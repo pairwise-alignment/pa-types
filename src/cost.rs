@@ -12,14 +12,14 @@ pub type Score = i32;
 /// All values must be non-negative.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub struct CostModel {
-    /// > 0
+    /// `> 0`
     ///
-    /// TODO: Support -infinity to disallow subtitutions entirely.
+    /// TODO: Support `-infinity` to disallow subxtitutions entirely.
     pub sub: Cost,
-    /// >= 0
-    /// When 0, equivalent to Linear.
+    /// `>= 0`
+    /// When `0`, equivalent to Linear.
     pub open: Cost,
-    /// > 0
+    /// `> 0`
     pub extend: Cost,
 }
 

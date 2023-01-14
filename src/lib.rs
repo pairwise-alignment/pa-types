@@ -17,6 +17,11 @@ pub type Sequence = Vec<Base>;
 /// A non-owning sequence
 pub type Seq<'a> = &'a [Base];
 
+/// Convert `seq` to a `String`.
+pub fn seq_to_string(seq: Seq) -> String {
+    String::from_utf8(seq.to_vec()).unwrap()
+}
+
 /// A 0-based index into a sequence.
 pub type I = i32;
 
