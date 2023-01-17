@@ -3,6 +3,7 @@ pub mod cost;
 
 use std::cmp::Ordering;
 
+// Re-export types for convenience of `use pa_types::*;`.
 pub use cigar::*;
 pub use cost::*;
 
@@ -111,5 +112,28 @@ impl Pos {
         <T as TryInto<i32>>::Error: std::fmt::Debug,
     {
         Pos(i.try_into().unwrap(), j.try_into().unwrap())
+    }
+}
+
+/// A small wrapper around Pos that implements Ord for lexicographic ordering.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LexPos(pub Pos);
+
+impl PartialOrd for LexPos {
+    #[inline]
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+
+    #[inline]
+    fn lt(&self, other: &Self) -> bool {
+        (self.0 .0, self.0 .1) < (other.0 .0, other.0 .1)
+    }
+}
+
+impl Ord for LexPos {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.0 .0, self.0 .1).cmp(&(other.0 .0, other.0 .1))
     }
 }
