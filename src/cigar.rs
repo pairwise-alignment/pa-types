@@ -48,7 +48,11 @@ impl ToString for Cigar {
     fn to_string(&self) -> String {
         let mut s = String::new();
         for elem in &self.ops {
-            write!(&mut s, "{}{}", elem.cnt, elem.op.to_char()).unwrap();
+            if elem.cnt == 1 {
+                write!(&mut s, "{}", elem.op.to_char()).unwrap();
+            } else {
+                write!(&mut s, "{}{}", elem.cnt, elem.op.to_char()).unwrap();
+            }
         }
         s
     }
@@ -294,5 +298,27 @@ impl Cigar {
                 b,
             )
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn to_string() {
+        let c = Cigar {
+            ops: vec![
+                CigarElem {
+                    op: CigarOp::Ins,
+                    cnt: 1,
+                },
+                CigarElem {
+                    op: CigarOp::Match,
+                    cnt: 2,
+                },
+            ],
+        };
+        assert_eq!(c.to_string(), "I2=");
     }
 }
