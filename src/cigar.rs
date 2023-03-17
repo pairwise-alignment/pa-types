@@ -162,6 +162,16 @@ impl Cigar {
         self.ops.push(CigarElem { op, cnt: 1 });
     }
 
+    pub fn push_elem(&mut self, e: CigarElem) {
+        if let Some(s) = self.ops.last_mut() {
+            if s.op == e.op {
+                s.cnt += e.cnt;
+                return;
+            }
+        }
+        self.ops.push(e);
+    }
+
     pub fn push_matches(&mut self, cnt: I) {
         if let Some(s) = self.ops.last_mut() {
             if s.op == CigarOp::Match {
@@ -211,10 +221,10 @@ impl Cigar {
         cost
     }
 
-    /// Splits all 'M'/Matches into matches and substitutions.
+    /// Splits all 'M'/Matches into matches and substitutions, and joins consecutive equal elements.
     pub fn resolve_matches(ops: impl Iterator<Item = CigarElem>, a: Seq, b: Seq) -> Self {
         let Pos(mut i, mut j) = Pos(0, 0);
-        let mut operations = vec![];
+        let mut c = Cigar { ops: vec![] };
         for CigarElem { op, cnt } in ops {
             match op {
                 CigarOp::Match => {
@@ -223,7 +233,7 @@ impl Cigar {
                         .group_by(|&eq| eq)
                         .into_iter()
                         .for_each(|(eq, group)| {
-                            operations.push(CigarElem {
+                            c.push_elem(CigarElem {
                                 op: if eq { CigarOp::Match } else { CigarOp::Sub },
                                 cnt: group.count() as _,
                             });
@@ -244,60 +254,36 @@ impl Cigar {
                     i += cnt;
                 }
             };
-            operations.push(CigarElem { op, cnt });
+            c.push_elem(CigarElem { op, cnt });
         }
-        Cigar { ops: operations }
+        c
     }
 
     pub fn parse(s: &str, a: Seq, b: Seq) -> Self {
-        if s.as_bytes().iter().any(|&b| b.is_ascii_digit()) {
-            Self::resolve_matches(
-                s.as_bytes()
-                    .split_inclusive(|b| b.is_ascii_alphabetic())
-                    .map(|slice| {
-                        let (op, cnt) = slice.split_last().unwrap();
-                        let cnt = if cnt.is_empty() {
-                            1
-                        } else {
-                            unsafe { std::str::from_utf8_unchecked(cnt) }
-                                .parse()
-                                .unwrap()
-                        };
-                        let op = match *op {
-                            b'M' | b'=' => CigarOp::Match,
-                            b'X' => CigarOp::Sub,
-                            b'I' => CigarOp::Ins,
-                            b'D' => CigarOp::Del,
-                            _ => panic!(),
-                        };
-                        CigarElem { op, cnt }
-                    }),
-                a,
-                b,
-            )
-        } else {
-            Self::resolve_matches(
-                s.as_bytes()
-                    .iter()
-                    .group_by(|&b| b)
-                    .into_iter()
-                    .map(|(b, group)| {
-                        let op = match b {
-                            b'M' | b'=' => CigarOp::Match,
-                            b'X' => CigarOp::Sub,
-                            b'I' => CigarOp::Ins,
-                            b'D' => CigarOp::Del,
-                            _ => panic!(),
-                        };
-                        CigarElem {
-                            op,
-                            cnt: group.count() as _,
-                        }
-                    }),
-                a,
-                b,
-            )
-        }
+        Self::resolve_matches(
+            s.as_bytes()
+                .split_inclusive(|b| b.is_ascii_alphabetic())
+                .map(|slice| {
+                    let (op, cnt) = slice.split_last().unwrap();
+                    let cnt = if cnt.is_empty() {
+                        1
+                    } else {
+                        unsafe { std::str::from_utf8_unchecked(cnt) }
+                            .parse()
+                            .unwrap()
+                    };
+                    let op = match *op {
+                        b'M' | b'=' => CigarOp::Match,
+                        b'X' => CigarOp::Sub,
+                        b'I' => CigarOp::Ins,
+                        b'D' => CigarOp::Del,
+                        _ => panic!(),
+                    };
+                    CigarElem { op, cnt }
+                }),
+            a,
+            b,
+        )
     }
 }
 
@@ -320,5 +306,15 @@ mod test {
             ],
         };
         assert_eq!(c.to_string(), "I2=");
+    }
+
+    #[test]
+    fn from_path() {
+        let c = Cigar::from_path(
+            b"aaa",
+            b"aabc",
+            &vec![Pos(0, 0), Pos(1, 1), Pos(2, 2), Pos(3, 3), Pos(3, 4)],
+        );
+        assert_eq!(c.to_string(), "2=XI");
     }
 }
