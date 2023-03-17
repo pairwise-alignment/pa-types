@@ -137,3 +137,11 @@ impl Ord for LexPos {
         (self.0 .0, self.0 .1).cmp(&(other.0 .0, other.0 .1))
     }
 }
+
+/// Generic global pairwise alignment interface.
+pub trait Aligner: std::fmt::Debug {
+    /// An alignment of sequences `a` and `b`.
+    /// The returned cost is the *non-negative* cost of the alignment.
+    /// Costmodel and traceback parameters must be specified on construction of the aligner.
+    fn align(&mut self, a: Seq, b: Seq) -> (Cost, Option<Cigar>);
+}
