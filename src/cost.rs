@@ -10,16 +10,20 @@ pub type Score = i32;
 
 /// Different cost models.
 /// All values must be non-negative.
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy, clap::Args)]
 pub struct CostModel {
-    /// `> 0`
+    /// Substitution cost, (> 0)
     ///
-    /// TODO: Support `-infinity` to disallow subxtitutions entirely.
+    /// TODO: Support `-infinity` to disallow substitutions entirely.
+    #[clap(long, default_value_t = 1, value_name = "COST")]
     pub sub: Cost,
-    /// `>= 0`
-    /// When `0`, equivalent to Linear.
+    /// Gap open cost (>= 0)
+    ///
+    /// When 0, gap cost is linear.
+    #[clap(long, default_value_t = 0, value_name = "COST")]
     pub open: Cost,
-    /// `> 0`
+    /// Gap extend cost (> 0)
+    #[clap(long, default_value_t = 1, value_name = "COST")]
     pub extend: Cost,
 }
 
