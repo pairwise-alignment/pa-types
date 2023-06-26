@@ -43,6 +43,17 @@ impl CigarOp {
         }
     }
 }
+impl From<u8> for CigarOp {
+    fn from(op: u8) -> Self {
+        match op {
+            b'=' | b'M' => CigarOp::Match,
+            b'X' => CigarOp::Sub,
+            b'I' => CigarOp::Ins,
+            b'D' => CigarOp::Del,
+            _ => panic!("Invalid CigarOp"),
+        }
+    }
+}
 
 impl ToString for Cigar {
     fn to_string(&self) -> String {
@@ -228,19 +239,15 @@ impl Cigar {
         for CigarElem { op, cnt } in ops {
             match op {
                 CigarOp::Match => {
-                    std::iter::zip(i..i + cnt, j..j + cnt)
-                        .map(|(i, j)| a[i as usize] == b[j as usize])
-                        .group_by(|&eq| eq)
-                        .into_iter()
-                        .for_each(|(eq, group)| {
-                            c.push_elem(CigarElem {
-                                op: if eq { CigarOp::Match } else { CigarOp::Sub },
-                                cnt: group.count() as _,
-                            });
+                    for _ in 0..cnt {
+                        c.push(if a[i as usize] == b[j as usize] {
+                            CigarOp::Match
+                        } else {
+                            CigarOp::Sub
                         });
-
-                    i += cnt;
-                    j += cnt;
+                        i += 1;
+                        j += 1;
+                    }
                     continue;
                 }
                 CigarOp::Sub => {
@@ -259,12 +266,37 @@ impl Cigar {
         c
     }
 
+    /// A simpler parsing function that only parses strings of characters `M=XID`, without preceding counts.
+    /// Consecutive characters are grouped, and `M` and `=` chars are resolved into `=` and `X`.
+    pub fn parse_without_counts(s: &str, a: Seq, b: Seq) -> Self {
+        Self::resolve_matches(
+            s.as_bytes().iter().map(|&op| CigarElem {
+                op: op.into(),
+                cnt: 1,
+            }),
+            a,
+            b,
+        )
+    }
+
+    /// A simpler parsing function that only parses strings of characters `MXID`, without preceding counts.
+    /// Consecutive characters are grouped. `M` chars are *not* resolved and assumed to mean `=`.
+    pub fn parse_without_resolving(s: &str) -> Self {
+        let mut c = Cigar { ops: vec![] };
+        for &op in s.as_bytes() {
+            c.push(op.into())
+        }
+        c
+    }
+
+    /// A more generic (and slower) parsing function that also allows optional counts, e.g. `5M2X3M`.
+    /// Consecutive characters are grouped, and `M` and `=` chars are resolved into `=` and `X`.
     pub fn parse(s: &str, a: Seq, b: Seq) -> Self {
         Self::resolve_matches(
             s.as_bytes()
                 .split_inclusive(|b| b.is_ascii_alphabetic())
                 .map(|slice| {
-                    let (op, cnt) = slice.split_last().unwrap();
+                    let (&op, cnt) = slice.split_last().unwrap();
                     let cnt = if cnt.is_empty() {
                         1
                     } else {
@@ -272,14 +304,7 @@ impl Cigar {
                             .parse()
                             .unwrap()
                     };
-                    let op = match *op {
-                        b'M' | b'=' => CigarOp::Match,
-                        b'X' => CigarOp::Sub,
-                        b'I' => CigarOp::Ins,
-                        b'D' => CigarOp::Del,
-                        _ => panic!(),
-                    };
-                    CigarElem { op, cnt }
+                    CigarElem { op: op.into(), cnt }
                 }),
             a,
             b,
