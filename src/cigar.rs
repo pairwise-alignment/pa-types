@@ -13,7 +13,7 @@ pub enum CigarOp {
     Ins,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub struct CigarElem {
     pub op: CigarOp,
     pub cnt: I,
@@ -28,7 +28,7 @@ impl CigarElem {
 /// Types representation of a Cigar string.
 // This is similar to https://docs.rs/bio/1.0.0/bio/alignment/struct.Alignment.html,
 // but more specific for our use case.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
 pub struct Cigar {
     pub ops: Vec<CigarElem>,
 }
@@ -309,6 +309,10 @@ impl Cigar {
             a,
             b,
         )
+    }
+
+    pub fn reverse(&mut self) {
+        self.ops.reverse();
     }
 }
 
