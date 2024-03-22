@@ -196,7 +196,7 @@ impl Cigar {
         });
     }
 
-    pub fn verify(&self, cm: &CostModel, a: Seq, b: Seq) -> Cost {
+    pub fn verify(&self, cm: &CostModel, a: Seq, b: Seq) -> Result<Cost, &str> {
         let mut pos: (usize, usize) = (0, 0);
         let mut cost: Cost = 0;
 
@@ -204,14 +204,18 @@ impl Cigar {
             match op {
                 CigarOp::Match => {
                     for _ in 0..cnt {
-                        assert_eq!(a.get(pos.0), b.get(pos.1));
+                        if a.get(pos.0) != b.get(pos.1) {
+                            return Err("Expected match but found substitution.");
+                        }
                         pos.0 += 1;
                         pos.1 += 1;
                     }
                 }
                 CigarOp::Sub => {
                     for _ in 0..cnt {
-                        assert_ne!(a.get(pos.0), b.get(pos.1));
+                        if a.get(pos.0) == b.get(pos.1) {
+                            return Err("Expected substitution but found match.");
+                        }
                         pos.0 += 1;
                         pos.1 += 1;
                         cost += cm.sub;
@@ -227,9 +231,11 @@ impl Cigar {
                 }
             }
         }
-        assert!(pos == (a.len(), b.len()));
+        if pos != (a.len(), b.len()) {
+            return Err("Wrong alignment length.");
+        }
 
-        cost
+        Ok(cost)
     }
 
     /// Splits all 'M'/Matches into matches and substitutions, and joins consecutive equal elements.
