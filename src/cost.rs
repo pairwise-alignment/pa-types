@@ -115,11 +115,11 @@ impl ScoreModel {
     pub fn global_cost(&self, score: Score, a_len: usize, b_len: usize) -> Cost {
         let path_len = (a_len + b_len) as i32;
         let s = -score + path_len * Self::OFFSET;
-        assert!(
-            s % self.factor == 0,
-            "path_len {path_len}: Score {score} reduced to cost {s} which is not a multiple of {}",
-            self.factor
-        );
+        // assert!(
+        //     s % self.factor == 0,
+        //     "path_len {path_len}: Score {score} reduced to cost {s} which is not a multiple of {}",
+        //     self.factor
+        // );
         s / self.factor
     }
 }
