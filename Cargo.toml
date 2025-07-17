@@ -2,7 +2,7 @@
 name = "pa-types"
 authors = ["Ragnar Groot Koerkamp", "Daniel Liu"]
 description = "Core library types for global pairwise alignment"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 repository = "https://github.com/pairwise-alignment/pa-types"
 license = "MIT"
