@@ -73,7 +73,7 @@ impl Cigar {
     pub fn from_ops(ops: impl Iterator<Item = CigarOp>) -> Self {
         Cigar {
             ops: ops
-                .group_by(|&op| op)
+                .chunk_by(|&op| op)
                 .into_iter()
                 .map(|(op, group)| CigarElem::new(op, group.count() as _))
                 .collect(),
