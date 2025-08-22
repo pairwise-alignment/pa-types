@@ -59,11 +59,7 @@ impl ToString for Cigar {
     fn to_string(&self) -> String {
         let mut s = String::new();
         for elem in &self.ops {
-            if elem.cnt == 1 {
-                write!(&mut s, "{}", elem.op.to_char()).unwrap();
-            } else {
-                write!(&mut s, "{}{}", elem.cnt, elem.op.to_char()).unwrap();
-            }
+            write!(&mut s, "{}{}", elem.cnt, elem.op.to_char()).unwrap();
         }
         s
     }
@@ -340,7 +336,7 @@ mod test {
                 },
             ],
         };
-        assert_eq!(c.to_string(), "I2=");
+        assert_eq!(c.to_string(), "1I2=");
     }
 
     #[test]
@@ -350,6 +346,6 @@ mod test {
             b"aabc",
             &vec![Pos(0, 0), Pos(1, 1), Pos(2, 2), Pos(3, 3), Pos(3, 4)],
         );
-        assert_eq!(c.to_string(), "2=XI");
+        assert_eq!(c.to_string(), "2=1X1I");
     }
 }
