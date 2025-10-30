@@ -14,6 +14,15 @@ pub enum CigarOp {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CigarOpChars {
+    Match(u8),
+    /// (from, to)
+    Sub(u8, u8),
+    Del(u8),
+    Ins(u8),
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub struct CigarElem {
     pub op: CigarOp,
     pub cnt: I,
@@ -99,6 +108,54 @@ impl Cigar {
             a,
             b,
         )
+    }
+
+    /// Return the diff from pattern to text.
+    pub fn to_char_pairs<'s>(&'s self, pattern: &'s [u8], text: &'s [u8]) -> Vec<CigarOpChars> {
+        let mut pos = Pos(0, 0);
+
+        let fix_case = !(b'A' ^ b'a');
+
+        let mut out = vec![];
+        for el in &self.ops {
+            for _ in 0..el.cnt {
+                let c;
+                match el.op {
+                    CigarOp::Match => {
+                        // NOTE: IUPAC characters can be matching even when they're not equal.
+                        // assert_eq!(
+                        //     (pattern[pos.0 as usize] & fix_case) as char,
+                        //     (text[pos.1 as usize] & fix_case) as char,
+                        //     "mismatch for {pos:?}"
+                        // );
+                        c = CigarOpChars::Match(text[pos.1 as usize]);
+                        pos += Pos(1, 1);
+                    }
+                    CigarOp::Sub => {
+                        assert_ne!(
+                            (pattern[pos.0 as usize] & fix_case) as char,
+                            (text[pos.1 as usize] & fix_case) as char,
+                            "cigar {:?}\npattern {:?}\ntext    {:?}\nmismatch for {pos:?}",
+                            self.to_string(),
+                            String::from_utf8_lossy(pattern),
+                            String::from_utf8_lossy(text)
+                        );
+                        c = CigarOpChars::Sub(pattern[pos.0 as usize], text[pos.1 as usize]);
+                        pos += Pos(1, 1);
+                    }
+                    CigarOp::Del => {
+                        c = CigarOpChars::Del(pattern[pos.0 as usize]);
+                        pos += Pos(1, 0);
+                    }
+                    CigarOp::Ins => {
+                        c = CigarOpChars::Ins(text[pos.1 as usize]);
+                        pos += Pos(0, 1);
+                    }
+                };
+                out.push(c);
+            }
+        }
+        out
     }
 
     pub fn to_path(&self) -> Path {
