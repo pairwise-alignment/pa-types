@@ -370,6 +370,11 @@ impl Cigar {
         )
     }
 
+    /// Clear all cigar operations.
+    pub fn clear(&mut self) {
+        self.ops.clear();
+    }
+
     pub fn reverse(&mut self) {
         self.ops.reverse();
     }
