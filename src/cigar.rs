@@ -447,4 +447,18 @@ mod test {
             ]
         );
     }
+
+    #[test]
+    fn from_string_no_counts() {
+        let c = Cigar::from_string("=XIDDD");
+        assert_eq!(
+            c.ops,
+            vec![
+                CigarElem::new(CigarOp::Match, 1),
+                CigarElem::new(CigarOp::Sub, 1),
+                CigarElem::new(CigarOp::Ins, 1),
+                CigarElem::new(CigarOp::Del, 3),
+            ]
+        );
+    }
 }
