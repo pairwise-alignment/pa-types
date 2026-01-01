@@ -348,6 +348,23 @@ impl Cigar {
         c
     }
 
+    /// Parse a Cigar string with optional counts
+    pub fn from_string(s: &str) -> Self {
+        let mut c = Cigar { ops: vec![] };
+        for slice in s.as_bytes().split_inclusive(|b| !b.is_ascii_digit()) {
+            let (&op, cnt_bytes) = slice.split_last().expect("Cigar string cannot be empty");
+            let cnt = if cnt_bytes.is_empty() {
+                1
+            } else {
+                unsafe { std::str::from_utf8_unchecked(cnt_bytes) }
+                    .parse()
+                    .expect("Invalid Cigar count")
+            };
+            c.push_elem(CigarElem { op: op.into(), cnt });
+        }
+        c
+    }
+
     /// A more generic (and slower) parsing function that also allows optional counts, e.g. `5M2X3M`.
     /// Consecutive characters are grouped, and `M` and `=` chars are resolved into `=` and `X`.
     pub fn parse(s: &str, a: Seq, b: Seq) -> Self {
@@ -409,5 +426,25 @@ mod test {
             &vec![Pos(0, 0), Pos(1, 1), Pos(2, 2), Pos(3, 3), Pos(3, 4)],
         );
         assert_eq!(c.to_string(), "2=1X1I");
+    }
+
+    #[test]
+    fn from_string_with_count() {
+        let c = Cigar::from_string("24=");
+        assert_eq!(c.ops.len(), 1);
+        assert_eq!(c.ops[0], CigarElem::new(CigarOp::Match, 24));
+    }
+
+    #[test]
+    fn from_string_mixed_ops() {
+        let c = Cigar::from_string("2=3I1X");
+        assert_eq!(
+            c.ops,
+            vec![
+                CigarElem::new(CigarOp::Match, 2),
+                CigarElem::new(CigarOp::Ins, 3),
+                CigarElem::new(CigarOp::Sub, 1)
+            ]
+        );
     }
 }
