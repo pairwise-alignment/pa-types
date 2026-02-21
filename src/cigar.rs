@@ -433,7 +433,7 @@ mod tests {
             assert_eq!(CigarOp::from_delta(op.delta()), op);
         }
         assert_eq!(CigarOp::from_delta(Pos(1, 1)), CigarOp::Match);
-        assert_eq!(CigarOp::from_delta(Pos(1, 1)), CigarOp::Sub);
+        //  assert_eq!(CigarOp::from_delta(Pos(1, 1)), CigarOp::Sub);
         assert_eq!(CigarOp::from_delta(Pos(1, 0)), CigarOp::Del); // Consume text
         assert_eq!(CigarOp::from_delta(Pos(0, 1)), CigarOp::Ins); // Consume pattern
     }
