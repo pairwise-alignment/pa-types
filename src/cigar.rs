@@ -4,7 +4,23 @@ use std::fmt::Write;
 
 use crate::*;
 
-// TODO(ragnar): Define which direction is insertion and which is deletion.
+/*
++----------------+----------------+----------------------------------------------+---------------+---------------+
+| Symbol         | Name           | Brief Description                            | Consumes Query| Consumes Ref  |
++----------------+----------------+----------------------------------------------+---------------+---------------+
+| M              | Match          | No insertion or deletions, bases may differ | ✓             | ✓             |
+| I              | Insertion      | Additional base in query (not in reference) | ✓             | ✗             |
+| D              | Deletion       | Query is missing base from reference        | ✗             | ✓             |
+| =              | Equal          | No insertions or deletions, bases agree     | ✓             | ✓             |
+| X              | Not Equal      | No insertions or deletions, bases differ    | ✓             | ✓             |
+| N              | None           | No query bases to align (spliced read)      | ✗             | ✓             |
+| S              | Soft-Clipped   | Bases on end of read not aligned but stored | ✓             | ✗             |
+| H              | Hard-Clipped   | Bases on end of read not aligned, not stored| ✗             | ✗             |
+| P              | Padding        | Neither read nor reference has a base       | ✗             | ✗             |
++----------------+----------------+----------------------------------------------+---------------+---------------+
+
+Uses SAM cigar conventions. See https://timd.one/blog/genomics/cigar.php
+*/
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CigarOp {
     Match,
@@ -51,7 +67,39 @@ impl CigarOp {
             CigarOp::Del => 'D',
         }
     }
+
+    /// Gives index change for operation (text_pos, query_pos)
+    #[inline(always)]
+    pub fn delta(&self) -> Pos {
+        match self {
+            CigarOp::Match | CigarOp::Sub => Pos(1, 1),
+            CigarOp::Del => Pos(1, 0), // deletion: consumes ref/text only
+            CigarOp::Ins => Pos(0, 1), // insertion: consumes pattern/query only
+        }
+    }
+
+    /// Given index change (text_pos, query_pos) -> CigarOp
+    /// Note ignores sub, (1,1) is always Match as we cannot know
+    /// without sequences.
+    #[inline(always)]
+    pub fn from_delta(delta: Pos) -> Self {
+        match delta {
+            Pos(0, 1) => CigarOp::Ins,
+            Pos(1, 0) => CigarOp::Del,
+            Pos(1, 1) => CigarOp::Match,
+            _ => panic!("Invalid delta: {:?}", delta),
+        }
+    }
 }
+
+// Mostly to make verify/resolve matches clearer while still using the delta mapping
+impl std::ops::Mul<I> for Pos {
+    type Output = Pos;
+    fn mul(self, rhs: I) -> Pos {
+        Pos(self.0 * rhs, self.1 * rhs)
+    }
+}
+
 impl From<u8> for CigarOp {
     fn from(op: u8) -> Self {
         match op {
@@ -85,42 +133,31 @@ impl Cigar {
         }
     }
 
-    pub fn from_path(a: Seq, b: Seq, path: &Path) -> Cigar {
+    /// Note (1,1) = Match here, though technically could be sub as well
+    pub fn from_path(text: Seq, pattern: Seq, path: &Path) -> Cigar {
         if path[0] != Pos(0, 0) {
             panic!("Path must start at (0,0)!");
         }
         Self::resolve_matches(
-            path.iter().tuple_windows().map(|(&a, &b)| match b - a {
-                Pos(0, 1) => CigarElem {
-                    op: CigarOp::Ins,
-                    cnt: 1,
-                },
-                Pos(1, 0) => CigarElem {
-                    op: CigarOp::Del,
-                    cnt: 1,
-                },
-                Pos(1, 1) => CigarElem {
-                    op: CigarOp::Match,
-                    cnt: 1,
-                },
-                _ => panic!("Path elements are not consecutive."),
-            }),
-            a,
-            b,
+            path.iter()
+                .tuple_windows()
+                .map(|(&text_pos, &pattern_pos)| {
+                    CigarElem::new(CigarOp::from_delta(pattern_pos - text_pos), 1)
+                }),
+            text,
+            pattern,
         )
     }
 
     /// Return the diff from pattern to text.
-    pub fn to_char_pairs<'s>(&'s self, pattern: &'s [u8], text: &'s [u8]) -> Vec<CigarOpChars> {
+    /// pos is always Pos(text_pos, query_pos).
+    pub fn to_char_pairs<'s>(&'s self, text: &'s [u8], pattern: &'s [u8]) -> Vec<CigarOpChars> {
         let mut pos = Pos(0, 0);
-
         let fix_case = !(b'A' ^ b'a');
-
         let mut out = vec![];
         for el in &self.ops {
             for _ in 0..el.cnt {
-                let c;
-                match el.op {
+                let c = match el.op {
                     CigarOp::Match => {
                         // NOTE: IUPAC characters can be matching even when they're not equal.
                         // assert_eq!(
@@ -128,28 +165,34 @@ impl Cigar {
                         //     (text[pos.1 as usize] & fix_case) as char,
                         //     "mismatch for {pos:?}"
                         // );
-                        c = CigarOpChars::Match(text[pos.1 as usize]);
-                        pos += Pos(1, 1);
+                        let c = CigarOpChars::Match(text[pos.0 as usize]);
+                        pos += el.op.delta();
+                        c
                     }
                     CigarOp::Sub => {
                         assert_ne!(
-                            (pattern[pos.0 as usize] & fix_case) as char,
-                            (text[pos.1 as usize] & fix_case) as char,
+                            (text[pos.0 as usize] & fix_case) as char,
+                            (pattern[pos.1 as usize] & fix_case) as char,
                             "cigar {:?}\npattern {:?}\ntext    {:?}\nmismatch for {pos:?}",
                             self.to_string(),
                             String::from_utf8_lossy(pattern),
                             String::from_utf8_lossy(text)
                         );
-                        c = CigarOpChars::Sub(pattern[pos.0 as usize], text[pos.1 as usize]);
-                        pos += Pos(1, 1);
+                        let c = CigarOpChars::Sub(text[pos.0 as usize], pattern[pos.1 as usize]);
+                        pos += el.op.delta();
+                        c
                     }
                     CigarOp::Del => {
-                        c = CigarOpChars::Del(pattern[pos.0 as usize]);
-                        pos += Pos(1, 0);
+                        // Note deletion consumes text hence text slice
+                        let c = CigarOpChars::Del(text[pos.0 as usize]);
+                        pos += el.op.delta();
+                        c
                     }
                     CigarOp::Ins => {
-                        c = CigarOpChars::Ins(text[pos.1 as usize]);
-                        pos += Pos(0, 1);
+                        // Note insertion consumes pattern hence pattern slice
+                        let c = CigarOpChars::Ins(pattern[pos.1 as usize]);
+                        pos += el.op.delta();
+                        c
                     }
                 };
                 out.push(c);
@@ -163,12 +206,7 @@ impl Cigar {
         let mut path = vec![pos];
         for el in &self.ops {
             for _ in 0..el.cnt {
-                pos += match el.op {
-                    CigarOp::Match => Pos(1, 1),
-                    CigarOp::Sub => Pos(1, 1),
-                    CigarOp::Del => Pos(1, 0),
-                    CigarOp::Ins => Pos(0, 1),
-                };
+                pos += el.op.delta();
                 path.push(pos);
             }
         }
@@ -183,30 +221,28 @@ impl Cigar {
         for el in &self.ops {
             match el.op {
                 CigarOp::Match => {
-                    for _ in 0..(el.cnt as Cost) {
-                        pos.0 += 1;
-                        pos.1 += 1;
+                    for _ in 0..el.cnt {
+                        pos += el.op.delta();
                         path.push((pos, cost));
                     }
                 }
                 CigarOp::Sub => {
-                    for _ in 0..(el.cnt as Cost) {
-                        pos.0 += 1;
-                        pos.1 += 1;
+                    for _ in 0..el.cnt {
+                        pos += el.op.delta();
                         cost += cm.sub;
                         path.push((pos, cost));
                     }
                 }
                 CigarOp::Ins => {
                     for len in 1..=(el.cnt as Cost) {
-                        pos.1 += 1;
+                        pos += el.op.delta();
                         path.push((pos, cost + cm.ins(len)));
                     }
                     cost += cm.ins(el.cnt);
                 }
                 CigarOp::Del => {
                     for len in 1..=(el.cnt as Cost) {
-                        pos.0 += 1;
+                        pos += el.op.delta();
                         path.push((pos, cost + cm.del(len)));
                     }
                     cost += cm.del(el.cnt);
@@ -249,42 +285,40 @@ impl Cigar {
         });
     }
 
-    pub fn verify(&self, cm: &CostModel, a: Seq, b: Seq) -> Result<Cost, &str> {
-        let mut pos: (usize, usize) = (0, 0);
+    pub fn verify(&self, cm: &CostModel, text: Seq, pattern: Seq) -> Result<Cost, &str> {
+        let mut pos = Pos(0, 0);
         let mut cost: Cost = 0;
 
         for &CigarElem { op, cnt } in &self.ops {
             match op {
                 CigarOp::Match => {
                     for _ in 0..cnt {
-                        if a.get(pos.0) != b.get(pos.1) {
+                        if text.get(pos.0 as usize) != pattern.get(pos.1 as usize) {
                             return Err("Expected match but found substitution.");
                         }
-                        pos.0 += 1;
-                        pos.1 += 1;
+                        pos += op.delta();
                     }
                 }
                 CigarOp::Sub => {
                     for _ in 0..cnt {
-                        if a.get(pos.0) == b.get(pos.1) {
+                        if text.get(pos.0 as usize) == pattern.get(pos.1 as usize) {
                             return Err("Expected substitution but found match.");
                         }
-                        pos.0 += 1;
-                        pos.1 += 1;
+                        pos += op.delta();
                         cost += cm.sub;
                     }
                 }
                 CigarOp::Ins => {
-                    pos.1 += cnt as usize;
+                    pos += op.delta() * cnt;
                     cost += cm.open + cnt as Cost * cm.extend;
                 }
                 CigarOp::Del => {
-                    pos.0 += cnt as usize;
+                    pos += op.delta() * cnt;
                     cost += cm.open + cnt as Cost * cm.extend;
                 }
             }
         }
-        if pos != (a.len(), b.len()) {
+        if pos != Pos(text.len() as I, pattern.len() as I) {
             return Err("Wrong alignment length.");
         }
 
@@ -292,32 +326,24 @@ impl Cigar {
     }
 
     /// Splits all 'M'/Matches into matches and substitutions, and joins consecutive equal elements.
-    pub fn resolve_matches(ops: impl Iterator<Item = CigarElem>, a: Seq, b: Seq) -> Self {
-        let Pos(mut i, mut j) = Pos(0, 0);
+    pub fn resolve_matches(ops: impl Iterator<Item = CigarElem>, text: Seq, pattern: Seq) -> Self {
+        let mut pos = Pos(0, 0);
         let mut c = Cigar { ops: vec![] };
         for CigarElem { op, cnt } in ops {
             match op {
                 CigarOp::Match => {
                     for _ in 0..cnt {
-                        c.push(if a[i as usize] == b[j as usize] {
+                        c.push(if text[pos.0 as usize] == pattern[pos.1 as usize] {
                             CigarOp::Match
                         } else {
                             CigarOp::Sub
                         });
-                        i += 1;
-                        j += 1;
+                        pos += op.delta();
                     }
                     continue;
                 }
-                CigarOp::Sub => {
-                    i += cnt;
-                    j += cnt;
-                }
-                CigarOp::Ins => {
-                    j += cnt;
-                }
-                CigarOp::Del => {
-                    i += cnt;
+                _ => {
+                    pos += op.delta() * cnt;
                 }
             };
             c.push_elem(CigarElem { op, cnt });
@@ -327,14 +353,14 @@ impl Cigar {
 
     /// A simpler parsing function that only parses strings of characters `M=XID`, without preceding counts.
     /// Consecutive characters are grouped, and `M` and `=` chars are resolved into `=` and `X`.
-    pub fn parse_without_counts(s: &str, a: Seq, b: Seq) -> Self {
+    pub fn parse_without_counts(s: &str, text: Seq, pattern: Seq) -> Self {
         Self::resolve_matches(
             s.as_bytes().iter().map(|&op| CigarElem {
                 op: op.into(),
                 cnt: 1,
             }),
-            a,
-            b,
+            text,
+            pattern,
         )
     }
 
@@ -367,12 +393,12 @@ impl Cigar {
 
     /// A more generic (and slower) parsing function that also allows optional counts, e.g. `5M2X3M`.
     /// Consecutive characters are grouped, and `M` and `=` chars are resolved into `=` and `X`.
-    pub fn parse(s: &str, a: Seq, b: Seq) -> Self {
+    pub fn parse(s: &str, text: Seq, pattern: Seq) -> Self {
         Self::resolve_matches(
             s.as_bytes()
-                .split_inclusive(|b| b.is_ascii_alphabetic())
-                .map(|slice| {
-                    let (&op, cnt) = slice.split_last().unwrap();
+                .split_inclusive(|pattern| pattern.is_ascii_alphabetic())
+                .map(|pattern_slice| {
+                    let (&op, cnt) = pattern_slice.split_last().unwrap();
                     let cnt = if cnt.is_empty() {
                         1
                     } else {
@@ -382,8 +408,8 @@ impl Cigar {
                     };
                     CigarElem { op: op.into(), cnt }
                 }),
-            a,
-            b,
+            text,
+            pattern,
         )
     }
 
@@ -394,6 +420,22 @@ impl Cigar {
 
     pub fn reverse(&mut self) {
         self.ops.reverse();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_delta() {
+        for op in [CigarOp::Match, CigarOp::Sub, CigarOp::Del, CigarOp::Ins] {
+            assert_eq!(CigarOp::from_delta(op.delta()), op);
+        }
+        assert_eq!(CigarOp::from_delta(Pos(1, 1)), CigarOp::Match);
+        assert_eq!(CigarOp::from_delta(Pos(1, 1)), CigarOp::Sub);
+        assert_eq!(CigarOp::from_delta(Pos(1, 0)), CigarOp::Del); // Consume text
+        assert_eq!(CigarOp::from_delta(Pos(0, 1)), CigarOp::Ins); // Consume pattern
     }
 }
 
