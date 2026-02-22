@@ -155,6 +155,8 @@ impl Cigar {
 
     /// Return the diff from pattern to text.
     /// pos is always Pos(text_pos, query_pos).
+    /// Return the diff from pattern to text.
+    /// pos is always Pos(text_pos, query_pos).
     pub fn to_char_pairs<'s>(&'s self, text: &'s [u8], pattern: &'s [u8]) -> Vec<CigarOpChars> {
         let mut pos = Pos(0, 0);
         let fix_case = !(b'A' ^ b'a');
@@ -169,9 +171,7 @@ impl Cigar {
                         //     (text[pos.1 as usize] & fix_case) as char,
                         //     "mismatch for {pos:?}"
                         // );
-                        let c = CigarOpChars::Match(text[pos.0 as usize]);
-                        pos += el.op.delta();
-                        c
+                        CigarOpChars::Match(text[pos.0 as usize])
                     }
                     CigarOp::Sub => {
                         assert_ne!(
@@ -182,25 +182,20 @@ impl Cigar {
                             String::from_utf8_lossy(pattern),
                             String::from_utf8_lossy(text)
                         );
-                        let c = CigarOpChars::Sub(text[pos.0 as usize], pattern[pos.1 as usize]);
-                        pos += el.op.delta();
-                        c
+                        CigarOpChars::Sub(text[pos.0 as usize], pattern[pos.1 as usize])
                     }
                     CigarOp::Del => {
                         // Note deletion consumes text hence text slice
-                        let c = CigarOpChars::Del(text[pos.0 as usize]);
-                        pos += el.op.delta();
-                        c
+                        CigarOpChars::Del(text[pos.0 as usize])
                     }
                     CigarOp::Ins => {
                         // Note insertion consumes pattern hence pattern slice
-                        let c = CigarOpChars::Ins(pattern[pos.1 as usize]);
-                        pos += el.op.delta();
-                        c
+                        CigarOpChars::Ins(pattern[pos.1 as usize])
                     }
                 };
                 out.push(c);
             }
+            pos += el.op.delta();
         }
         out
     }
