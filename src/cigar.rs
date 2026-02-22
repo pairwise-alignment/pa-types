@@ -1,10 +1,4 @@
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-use std::fmt::Write;
-
-use crate::*;
-
-/*
+/*!
 +----------------+----------------+----------------------------------------------+---------------+---------------+
 | Symbol         | Name           | Brief Description                            | Consumes Query| Consumes Ref  |
 +----------------+----------------+----------------------------------------------+---------------+---------------+
@@ -21,6 +15,13 @@ use crate::*;
 
 Uses SAM cigar conventions. See https://timd.one/blog/genomics/cigar.php
 */
+
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use std::fmt::Write;
+
+use crate::*;
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CigarOp {
     Match,
@@ -79,8 +80,7 @@ impl CigarOp {
     }
 
     /// Given index change (text_pos, query_pos) -> CigarOp
-    /// Note ignores sub, (1,1) is always Match as we cannot know
-    /// without sequences.
+    /// Note ignores sub, (1,1) is always Match
     #[inline(always)]
     pub fn from_delta(delta: Pos) -> Self {
         match delta {
@@ -133,7 +133,11 @@ impl Cigar {
         }
     }
 
-    /// Note (1,1) = Match here, though technically could be sub as well
+    /// Create Cigar from path and corresponding sequences.
+    ///
+    /// Assumes that path has (text_pos, pattern_pos) pairs.
+    /// To distinguish between match and sub it uses simple
+    /// equality (i.e. c1==c2) via `resolve_matches`
     pub fn from_path(text: Seq, pattern: Seq, path: &Path) -> Cigar {
         if path[0] != Pos(0, 0) {
             panic!("Path must start at (0,0)!");
@@ -290,13 +294,13 @@ impl Cigar {
         let mut cost: Cost = 0;
 
         for &CigarElem { op, cnt } in &self.ops {
+            pos += op.delta() * cnt;
             match op {
                 CigarOp::Match => {
                     for _ in 0..cnt {
                         if text.get(pos.0 as usize) != pattern.get(pos.1 as usize) {
                             return Err("Expected match but found substitution.");
                         }
-                        pos += op.delta();
                     }
                 }
                 CigarOp::Sub => {
@@ -304,16 +308,13 @@ impl Cigar {
                         if text.get(pos.0 as usize) == pattern.get(pos.1 as usize) {
                             return Err("Expected substitution but found match.");
                         }
-                        pos += op.delta();
                         cost += cm.sub;
                     }
                 }
                 CigarOp::Ins => {
-                    pos += op.delta() * cnt;
                     cost += cm.open + cnt as Cost * cm.extend;
                 }
                 CigarOp::Del => {
-                    pos += op.delta() * cnt;
                     cost += cm.open + cnt as Cost * cm.extend;
                 }
             }
@@ -429,7 +430,7 @@ mod tests {
 
     #[test]
     fn test_delta() {
-        for op in [CigarOp::Match, CigarOp::Sub, CigarOp::Del, CigarOp::Ins] {
+        for op in [CigarOp::Match, CigarOp::Del, CigarOp::Ins] {
             assert_eq!(CigarOp::from_delta(op.delta()), op);
         }
         assert_eq!(CigarOp::from_delta(Pos(1, 1)), CigarOp::Match);
@@ -500,6 +501,28 @@ mod test {
                 CigarElem::new(CigarOp::Sub, 1),
                 CigarElem::new(CigarOp::Ins, 1),
                 CigarElem::new(CigarOp::Del, 3),
+            ]
+        );
+    }
+
+    #[test]
+    #[rustfmt::skip]
+    fn push_to_path() {
+        let mut c = Cigar::default();
+                                // 0 0
+        c.push(CigarOp::Match); // 1  1
+        c.push(CigarOp::Del);   // 2  1  (text +1)
+        c.push(CigarOp::Ins);   // 2  2  (pattern +1)
+        c.push(CigarOp::Sub);   // 3  3
+
+        assert_eq!(
+            c.to_path(),
+            [
+                Pos(0, 0),
+                Pos(1, 1),
+                Pos(2, 1),
+                Pos(2, 2),
+                Pos(3, 3),
             ]
         );
     }
