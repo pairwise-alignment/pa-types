@@ -1,3 +1,23 @@
+//! Common types for alignments:
+//!
+//! Sequence types:
+//! - [`Base`] : `u8`,
+//! - [`Sequence`] : `Vec<Base>`,
+//! - [`Seq`] : `&[Base]`.
+//!
+//! Affine cost models:
+//! - [`CostModel`],
+//! - [`ScoreModel`].
+//!
+//! Alignment path:
+//! - index [`I`] : `i32`,
+//! - position type [`Pos`] : `(I, I)` for (text/ref index, pattern/query index),
+//! - [`Path`] : `Vec<Pos>`.
+//!
+//! Cigar strings (see [`cigar`] module documentation):
+//! - single character [`CigarOp`] : match/sub/ins/del,
+//! - repeated 'unit' [`CigarElem`] : [`CigarOp`] with length,
+//! - cigar string [`Cigar`] : `Vec<CigarElem>`.
 pub mod cigar;
 pub mod cost;
 
@@ -11,14 +31,16 @@ pub use cost::*;
 // NOTE: This is also part of rust-bio-types.
 pub type Base = u8;
 
-/// A sequence
+/// A vector of bases.
 // NOTE: This is also part of rust-bio-types.
 pub type Sequence = Vec<Base>;
 
-/// A non-owning sequence
+/// A slice of bases.
 pub type Seq<'a> = &'a [Base];
 
 /// Convert `seq` to a `String`.
+///
+/// Convenience wrapper around `String::from_utf8`.
 pub fn seq_to_string(seq: Seq) -> String {
     String::from_utf8(seq.to_vec()).unwrap()
 }
@@ -26,9 +48,9 @@ pub fn seq_to_string(seq: Seq) -> String {
 /// A 0-based index into a sequence.
 pub type I = i32;
 
-/// A position in a pairwise matching.
+/// A (text/ref, pattern/query) position in a pairwise alignment.
 ///
-/// A matching starts at `(0,0)` and ends at `(n, m)`.
+/// A global alignment starts at `(0,0)` and ends at `(n, m)`.
 #[derive(
     Debug,
     Clone,

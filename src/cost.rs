@@ -1,3 +1,4 @@
+//! `i32` [`Cost`] and [`Score`], affine [`CostModel`] and [`ScoreModel`].
 use serde::{Deserialize, Serialize};
 
 use crate::I;

@@ -1,4 +1,15 @@
 /*!
+Cigar string types.
+
+Uses SAM cigar conventions. See <https://timd.one/blog/genomics/cigar.php> (table below).
+
+In particular, an "insertion" is a character in the pattern/query (2nd `Pos` coordinate) that is not in the text/reference (first `Pos` coordinate), and opposite for deletions.
+
+We never output `M` characters, but do parse these into `=` and `X`, which need the corresponding text/pattern string to be resolved.
+
+Undetermined bases (`N`), clipping (`S`, `H`), and padding (`P`) are not supported.
+
+```text
 +----------------+----------------+----------------------------------------------+---------------+---------------+
 | Symbol         | Name           | Brief Description                            | Consumes Query| Consumes Ref  |
 +----------------+----------------+----------------------------------------------+---------------+---------------+
@@ -12,8 +23,8 @@
 | H              | Hard-Clipped   | Bases on end of read not aligned, not stored| ✗             | ✗             |
 | P              | Padding        | Neither read nor reference has a base       | ✗             | ✗             |
 +----------------+----------------+----------------------------------------------+---------------+---------------+
+```
 
-Uses SAM cigar conventions. See https://timd.one/blog/genomics/cigar.php
 */
 
 use itertools::Itertools;
@@ -22,23 +33,29 @@ use std::fmt::Write;
 
 use crate::*;
 
+/// A single cigar string character.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CigarOp {
+    /// `=`
     Match,
+    /// `X`
     Sub,
+    /// `D`
     Del,
+    /// `I`
     Ins,
 }
 
+/// A cigar string character with the corresponding characters from text and pattern.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CigarOpChars {
     Match(u8),
-    /// (from, to)
     Sub(u8, u8),
     Del(u8),
     Ins(u8),
 }
 
+/// A single repeated cigar element, e.g. `5=` or `3I`.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub struct CigarElem {
     pub op: CigarOp,
@@ -51,7 +68,9 @@ impl CigarElem {
     }
 }
 
-/// Types representation of a Cigar string.
+/// Main type representing a Cigar string.
+///
+/// Adjacent equal operations are typically merged into [`CigarElem`] with `cnt>1`.
 // This is similar to https://docs.rs/bio/1.0.0/bio/alignment/struct.Alignment.html,
 // but more specific for our use case.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
@@ -60,6 +79,7 @@ pub struct Cigar {
 }
 
 impl CigarOp {
+    /// Convert to one of `=XID`.
     pub fn to_char(&self) -> char {
         match self {
             CigarOp::Match => '=',
@@ -69,7 +89,7 @@ impl CigarOp {
         }
     }
 
-    /// Gives index change for operation (text_pos, query_pos)
+    /// Convert operation to `(text_pos, query_pos)` delta/step of path indices.
     #[inline(always)]
     pub fn delta(&self) -> Pos {
         match self {
@@ -79,8 +99,9 @@ impl CigarOp {
         }
     }
 
-    /// Given index change (text_pos, query_pos) -> CigarOp
-    /// Note ignores sub, (1,1) is always Match
+    /// Converts path delta `(text_pos, query_pos)` to `CigarOp`.
+    ///
+    /// Ignores [`CigarOp::Sub`]: (1,1) is always [`CigarOp::Match`].
     #[inline(always)]
     pub fn from_delta(delta: Pos) -> Self {
         match delta {
@@ -101,6 +122,9 @@ impl std::ops::Mul<I> for Pos {
 }
 
 impl From<u8> for CigarOp {
+    /// Convert from `=MXID` to `CigarOp`.
+    ///
+    /// `M` becomes [`CigarOp::Match`] and should be resolved via `resolve_matches`.
     fn from(op: u8) -> Self {
         match op {
             b'=' | b'M' => CigarOp::Match,
@@ -113,6 +137,7 @@ impl From<u8> for CigarOp {
 }
 
 impl ToString for Cigar {
+    /// Format the cigar to a `String`.
     fn to_string(&self) -> String {
         let mut s = String::new();
         for elem in &self.ops {
@@ -123,6 +148,7 @@ impl ToString for Cigar {
 }
 
 impl Cigar {
+    /// Concatenate the single-characters ops.
     pub fn from_ops(ops: impl Iterator<Item = CigarOp>) -> Self {
         Cigar {
             ops: ops
@@ -135,9 +161,9 @@ impl Cigar {
 
     /// Create Cigar from path and corresponding sequences.
     ///
-    /// Assumes that path has (text_pos, pattern_pos) pairs.
+    /// Path must have `(text_pos, query_pos)` pairs.
     /// To distinguish between match and sub it uses simple
-    /// equality (i.e. c1==c2) via `resolve_matches`
+    /// equality (i.e. c1==c2) via `resolve_matches`, so IUPAC matching is not supported.
     pub fn from_path(text: Seq, pattern: Seq, path: &Path) -> Cigar {
         if path[0] != Pos(0, 0) {
             panic!("Path must start at (0,0)!");
@@ -154,7 +180,6 @@ impl Cigar {
     }
 
     /// Return the diff from pattern to text.
-    /// pos is always Pos(text_pos, query_pos).
     pub fn to_char_pairs<'s>(&'s self, text: &'s [u8], pattern: &'s [u8]) -> Vec<CigarOpChars> {
         let mut pos = Pos(0, 0);
         let fix_case = !(b'A' ^ b'a');
@@ -198,6 +223,7 @@ impl Cigar {
         out
     }
 
+    /// Get the `Path` corresponding to this [`Cigar`].
     pub fn to_path(&self) -> Path {
         let mut pos = Pos(0, 0);
         let mut path = vec![pos];
@@ -210,6 +236,7 @@ impl Cigar {
         path
     }
 
+    /// Get the `Path` and the alignment `Cost` to each position.
     pub fn to_path_with_costs(&self, cm: CostModel) -> Vec<(Pos, Cost)> {
         let mut pos = Pos(0, 0);
         let mut cost = 0;
@@ -249,6 +276,7 @@ impl Cigar {
         path
     }
 
+    /// Push a [`CigarOp`] to the cigar.
     pub fn push(&mut self, op: CigarOp) {
         if let Some(s) = self.ops.last_mut() {
             if s.op == op {
@@ -259,6 +287,7 @@ impl Cigar {
         self.ops.push(CigarElem { op, cnt: 1 });
     }
 
+    /// Push a [`CigarElem`] to the cigar.
     pub fn push_elem(&mut self, e: CigarElem) {
         if let Some(s) = self.ops.last_mut() {
             if s.op == e.op {
@@ -269,6 +298,7 @@ impl Cigar {
         self.ops.push(e);
     }
 
+    /// Push `cnt` matches.
     pub fn push_matches(&mut self, cnt: I) {
         if let Some(s) = self.ops.last_mut() {
             if s.op == CigarOp::Match {
@@ -282,6 +312,7 @@ impl Cigar {
         });
     }
 
+    /// Check that the cigar is valid between `text` and `pattern` and return the cost.
     pub fn verify(&self, cm: &CostModel, text: Seq, pattern: Seq) -> Result<Cost, &str> {
         let mut pos = Pos(0, 0);
         let mut cost: Cost = 0;
@@ -322,7 +353,7 @@ impl Cigar {
         Ok(cost)
     }
 
-    /// Splits all 'M'/Matches into matches and substitutions, and joins consecutive equal elements.
+    /// Splits all 'M'/[`CigarOp::Match`] into matches (`=`) and substitutions (`X`), and joins consecutive equal elements.
     pub fn resolve_matches(ops: impl Iterator<Item = CigarElem>, text: Seq, pattern: Seq) -> Self {
         let mut pos = Pos(0, 0);
         let mut c = Cigar { ops: vec![] };
@@ -410,11 +441,12 @@ impl Cigar {
         )
     }
 
-    /// Clear all cigar operations.
+    /// Clear the internal vector.
     pub fn clear(&mut self) {
         self.ops.clear();
     }
 
+    /// Reverse the cigar string, for `rc(text)` and `rc(pattern)`.
     pub fn reverse(&mut self) {
         self.ops.reverse();
     }
