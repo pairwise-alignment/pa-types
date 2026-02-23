@@ -155,8 +155,6 @@ impl Cigar {
 
     /// Return the diff from pattern to text.
     /// pos is always Pos(text_pos, query_pos).
-    /// Return the diff from pattern to text.
-    /// pos is always Pos(text_pos, query_pos).
     pub fn to_char_pairs<'s>(&'s self, text: &'s [u8], pattern: &'s [u8]) -> Vec<CigarOpChars> {
         let mut pos = Pos(0, 0);
         let fix_case = !(b'A' ^ b'a');
@@ -194,8 +192,8 @@ impl Cigar {
                     }
                 };
                 out.push(c);
+                pos += el.op.delta();
             }
-            pos += el.op.delta();
         }
         out
     }
@@ -289,13 +287,13 @@ impl Cigar {
         let mut cost: Cost = 0;
 
         for &CigarElem { op, cnt } in &self.ops {
-            pos += op.delta() * cnt;
             match op {
                 CigarOp::Match => {
                     for _ in 0..cnt {
                         if text.get(pos.0 as usize) != pattern.get(pos.1 as usize) {
                             return Err("Expected match but found substitution.");
                         }
+                        pos += op.delta();
                     }
                 }
                 CigarOp::Sub => {
@@ -303,14 +301,17 @@ impl Cigar {
                         if text.get(pos.0 as usize) == pattern.get(pos.1 as usize) {
                             return Err("Expected substitution but found match.");
                         }
+                        pos += op.delta();
                         cost += cm.sub;
                     }
                 }
                 CigarOp::Ins => {
                     cost += cm.open + cnt as Cost * cm.extend;
+                    pos += op.delta() * cnt;
                 }
                 CigarOp::Del => {
                     cost += cm.open + cnt as Cost * cm.extend;
+                    pos += op.delta() * cnt;
                 }
             }
         }
@@ -433,11 +434,19 @@ mod tests {
         assert_eq!(CigarOp::from_delta(Pos(1, 0)), CigarOp::Del); // Consume text
         assert_eq!(CigarOp::from_delta(Pos(0, 1)), CigarOp::Ins); // Consume pattern
     }
-}
 
-#[cfg(test)]
-mod test {
-    use super::*;
+    #[test]
+    fn test_valid_eq() {
+        let c = Cigar::from_path(b"ab", b"aa", &vec![Pos(0, 0), Pos(1, 1), Pos(2, 2)]);
+        assert_eq!(c.to_string(), "1=1X");
+    }
+
+    #[test]
+    fn test_invalid_end_length() {
+        // (0,1)is invalid, text is longer than path
+        let c = Cigar::from_path(b"ab", b"aa", &vec![Pos(0, 0), Pos(0, 1)]);
+        assert!(c.verify(&CostModel::unit(), b"ab", b"aa").is_err());
+    }
 
     #[test]
     fn to_string() {
@@ -518,6 +527,70 @@ mod test {
                 Pos(2, 1),
                 Pos(2, 2),
                 Pos(3, 3),
+            ]
+        );
+    }
+
+    #[test]
+    fn to_char_pairs_all_match() {
+        let c = Cigar::from_string("3=");
+        let pairs = c.to_char_pairs(b"aaa", b"aaa");
+        assert_eq!(
+            pairs,
+            vec![
+                CigarOpChars::Match(b'a'),
+                CigarOpChars::Match(b'a'),
+                CigarOpChars::Match(b'a'),
+            ]
+        );
+    }
+
+    #[test]
+    fn to_char_pairs_sub() {
+        let c = Cigar::from_string("1X");
+        let pairs = c.to_char_pairs(b"a", b"c");
+        assert_eq!(pairs, vec![CigarOpChars::Sub(b'a', b'c')]);
+    }
+
+    #[test]
+    fn to_char_pairs_ins() {
+        let c = Cigar::from_string("1=1I1=");
+        let pairs = c.to_char_pairs(b"ac", b"abc");
+        assert_eq!(
+            pairs,
+            vec![
+                CigarOpChars::Match(b'a'),
+                CigarOpChars::Ins(b'b'),
+                CigarOpChars::Match(b'c'),
+            ]
+        );
+    }
+
+    #[test]
+    fn to_char_pairs_del() {
+        let c = Cigar::from_string("1=1D1=");
+        let pairs = c.to_char_pairs(b"abc", b"ac");
+        assert_eq!(
+            pairs,
+            vec![
+                CigarOpChars::Match(b'a'),
+                CigarOpChars::Del(b'b'),
+                CigarOpChars::Match(b'c'),
+            ]
+        );
+    }
+
+    #[test]
+    fn to_char_pairs_mixed() {
+        let c = Cigar::from_string("2=1X1I");
+        let pairs = c.to_char_pairs(b"abZd", b"abYc");
+        assert_eq!(
+            pairs,
+            vec![
+                CigarOpChars::Match(b'a'),
+                CigarOpChars::Match(b'b'),
+                CigarOpChars::Sub(b'Z', b'Y'),
+                CigarOpChars::Ins(b'c'),
             ]
         );
     }
