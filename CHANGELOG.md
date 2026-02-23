@@ -3,6 +3,8 @@
 <!-- next-header -->
 
 ## git
+
+## 1.3.0
 - Improve docs around the difference between cigar insert (extra in pattern/query) and delete
   (extra in text/reference).
 - Improve variable names from `a` and `b` to `text` and `pattern`.
