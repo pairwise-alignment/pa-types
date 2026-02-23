@@ -13,15 +13,15 @@ Undetermined bases (`N`), clipping (`S`, `H`), and padding (`P`) are not support
 +----------------+----------------+----------------------------------------------+---------------+---------------+
 | Symbol         | Name           | Brief Description                            | Consumes Query| Consumes Ref  |
 +----------------+----------------+----------------------------------------------+---------------+---------------+
-| M              | Match          | No insertion or deletions, bases may differ | ✓             | ✓             |
-| I              | Insertion      | Additional base in query (not in reference) | ✓             | ✗             |
-| D              | Deletion       | Query is missing base from reference        | ✗             | ✓             |
-| =              | Equal          | No insertions or deletions, bases agree     | ✓             | ✓             |
-| X              | Not Equal      | No insertions or deletions, bases differ    | ✓             | ✓             |
-| N              | None           | No query bases to align (spliced read)      | ✗             | ✓             |
-| S              | Soft-Clipped   | Bases on end of read not aligned but stored | ✓             | ✗             |
-| H              | Hard-Clipped   | Bases on end of read not aligned, not stored| ✗             | ✗             |
-| P              | Padding        | Neither read nor reference has a base       | ✗             | ✗             |
+| M              | Match          | No insertion or deletions, bases may differ  | ✓             | ✓             |
+| I              | Insertion      | Additional base in query (not in reference)  | ✓             | ✗             |
+| D              | Deletion       | Query is missing base from reference         | ✗             | ✓             |
+| =              | Equal          | No insertions or deletions, bases agree      | ✓             | ✓             |
+| X              | Not Equal      | No insertions or deletions, bases differ     | ✓             | ✓             |
+| N              | None           | No query bases to align (spliced read)       | ✗             | ✓             |
+| S              | Soft-Clipped   | Bases on end of read not aligned but stored  | ✓             | ✗             |
+| H              | Hard-Clipped   | Bases on end of read not aligned, not stored | ✗             | ✗             |
+| P              | Padding        | Neither read nor reference has a base        | ✗             | ✗             |
 +----------------+----------------+----------------------------------------------+---------------+---------------+
 ```
 
@@ -89,7 +89,7 @@ impl CigarOp {
         }
     }
 
-    /// Convert operation to `(text_pos, query_pos)` delta/step of path indices.
+    /// Convert operation to `(text_pos, pattern_pos)` delta/step of path indices.
     #[inline(always)]
     pub fn delta(&self) -> Pos {
         match self {
@@ -99,7 +99,7 @@ impl CigarOp {
         }
     }
 
-    /// Converts path delta `(text_pos, query_pos)` to `CigarOp`.
+    /// Converts path delta `(text_pos, pattern_pos)` to `CigarOp`.
     ///
     /// Ignores [`CigarOp::Sub`]: (1,1) is always [`CigarOp::Match`].
     #[inline(always)]
@@ -124,7 +124,7 @@ impl std::ops::Mul<I> for Pos {
 impl From<u8> for CigarOp {
     /// Convert from `=MXID` to `CigarOp`.
     ///
-    /// `M` becomes [`CigarOp::Match`] and should be resolved via `resolve_matches`.
+    /// `M` is interpreted as `=` ([`CigarOp::Match`]) and should be resolved into `=` or `X` ([`CigarOp::Sub`]) via `resolve_matches`.
     fn from(op: u8) -> Self {
         match op {
             b'=' | b'M' => CigarOp::Match,
@@ -161,7 +161,7 @@ impl Cigar {
 
     /// Create Cigar from path and corresponding sequences.
     ///
-    /// Path must have `(text_pos, query_pos)` pairs.
+    /// Path must have `(text_pos, pattern_pos)` pairs.
     /// To distinguish between match and sub it uses simple
     /// equality (i.e. c1==c2) via `resolve_matches`, so IUPAC matching is not supported.
     pub fn from_path(text: Seq, pattern: Seq, path: &Path) -> Cigar {
