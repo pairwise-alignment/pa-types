@@ -49,9 +49,13 @@ pub enum CigarOp {
 /// A cigar string character with the corresponding characters from text and pattern.
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CigarOpChars {
+    /// The text character of the matching pair.
     Match(u8),
+    /// The mismatching text and pattern character, in this order.
     Sub(u8, u8),
+    /// The text character that is missing from the pattern.
     Del(u8),
+    /// The pattern character that is missing from the text.
     Ins(u8),
 }
 
