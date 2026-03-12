@@ -3,7 +3,9 @@
 <!-- next-header -->
 
 ## git
+- Add `CigarOp::edit_cost` that returns 0 for `Match` and 1 for `Sub`/`Del`/`Ins`.
 - Add `Cigar::pop_op` that pops the last operation.
+- Improve `CigarOpChars` docs.
 
 ## 1.3.0
 - Improve docs around the difference between cigar insert (extra in pattern/query) and delete

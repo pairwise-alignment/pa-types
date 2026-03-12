@@ -103,6 +103,17 @@ impl CigarOp {
         }
     }
 
+    /// The edit-distance cost of the operation.
+    ///
+    /// 0 for `Match`, 1 otherwise.
+    #[inline(always)]
+    pub fn edit_cost(&self) -> Cost {
+        match self {
+            CigarOp::Match => 0,
+            _ => 1,
+        }
+    }
+
     /// Converts path delta `(text_pos, pattern_pos)` to `CigarOp`.
     ///
     /// Ignores [`CigarOp::Sub`]: (1,1) is always [`CigarOp::Match`].
