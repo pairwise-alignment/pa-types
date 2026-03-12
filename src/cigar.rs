@@ -291,6 +291,20 @@ impl Cigar {
         self.ops.push(CigarElem { op, cnt: 1 });
     }
 
+    /// Pop a single [`CigarOp`] from the cigar.
+    pub fn pop_op(&mut self) -> Option<CigarOp> {
+        while let Some(elem) = self.ops.last_mut() {
+            let op = elem.op;
+            assert!(elem.cnt > 0);
+            elem.cnt -= 1;
+            if elem.cnt == 0 {
+                self.ops.pop();
+            }
+            return Some(op);
+        }
+        None
+    }
+
     /// Push a [`CigarElem`] to the cigar.
     pub fn push_elem(&mut self, e: CigarElem) {
         if let Some(s) = self.ops.last_mut() {

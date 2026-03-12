@@ -3,6 +3,7 @@
 <!-- next-header -->
 
 ## git
+- Add `Cigar::pop_op` that pops the last operation.
 
 ## 1.3.0
 - Improve docs around the difference between cigar insert (extra in pattern/query) and delete
