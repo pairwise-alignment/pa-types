@@ -3,6 +3,8 @@
 <!-- next-header -->
 
 ## git
+
+## 1.4.0
 - Add `CigarOp::edit_cost` that returns 0 for `Match` and 1 for `Sub`/`Del`/`Ins`.
 - Add `Cigar::pop_op` that pops the last operation.
 - Improve `CigarOpChars` docs.
