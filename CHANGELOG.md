@@ -3,6 +3,8 @@
 <!-- next-header -->
 
 ## git
+
+## 1.5.0
 - Bugfix: Do not panic on case-only substitutions in `to_char_pairs`.
 
 ## 1.4.0
