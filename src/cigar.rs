@@ -197,7 +197,7 @@ impl Cigar {
     /// Return the diff from pattern to text.
     pub fn to_char_pairs<'s>(&'s self, text: &'s [u8], pattern: &'s [u8]) -> Vec<CigarOpChars> {
         let mut pos = Pos(0, 0);
-        let fix_case = !(b'A' ^ b'a');
+        // let fix_case = !(b'A' ^ b'a');
         let mut out = vec![];
         for el in &self.ops {
             for _ in 0..el.cnt {
@@ -212,9 +212,10 @@ impl Cigar {
                         CigarOpChars::Match(text[pos.0 as usize])
                     }
                     CigarOp::Sub => {
+                        // NOTE: ASCII characters can be mismatching when only differing in case.
                         assert_ne!(
-                            (text[pos.0 as usize] & fix_case) as char,
-                            (pattern[pos.1 as usize] & fix_case) as char,
+                            text[pos.0 as usize] as char,
+                            pattern[pos.1 as usize] as char,
                             "cigar {:?}\npattern {:?}\ntext    {:?}\nmismatch for {pos:?}",
                             self.to_string(),
                             String::from_utf8_lossy(pattern),

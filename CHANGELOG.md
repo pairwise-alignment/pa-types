@@ -3,6 +3,7 @@
 <!-- next-header -->
 
 ## git
+- Bugfix: Do not panic on case-only substitutions in `to_char_pairs`.
 
 ## 1.4.0
 - Add `CigarOp::edit_cost` that returns 0 for `Match` and 1 for `Sub`/`Del`/`Ins`.
